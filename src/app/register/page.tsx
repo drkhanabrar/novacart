@@ -17,6 +17,7 @@ export default function RegisterPage() {
     setError(null);
 
     const formData = new FormData(event.currentTarget);
+    const nameVal = formData.get("name")?.toString() || "Customer";
     const res = await registerUser(formData);
 
     if (res.error) {
@@ -25,7 +26,7 @@ export default function RegisterPage() {
     } else {
       if (res.userId) {
         localStorage.setItem("novacart_user_id", res.userId);
-        localStorage.setItem("novacart_user_name", res.name || "Customer");
+        localStorage.setItem("novacart_user_name", nameVal);
       }
       router.push("/products");
       router.refresh();
@@ -36,7 +37,9 @@ export default function RegisterPage() {
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-neutral-900/50 border border-neutral-800 rounded-3xl p-8 backdrop-blur-md">
         <div className="flex flex-col items-center mb-8">
-          <img src="/logo.png" alt="Nova Cart" className="h-10 w-auto object-contain mb-3" />
+          <div className="bg-white px-4 py-2 rounded-2xl shadow-md flex items-center justify-center mb-3">
+            <img src="/logo.png" alt="Nova Cart" className="h-8 w-auto object-contain" />
+          </div>
           <h1 className="text-2xl font-bold text-white tracking-tight mt-2">Create Account</h1>
           <p className="text-sm text-neutral-400 mt-1">Smart Shopping. Delivered.</p>
         </div>

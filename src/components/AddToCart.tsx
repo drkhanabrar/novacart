@@ -1,37 +1,43 @@
-"use client";
+'use client';
 
-import { ShoppingBag } from "lucide-react";
+import { useState } from "react";
+import { ShoppingCart } from "lucide-react";
 import { useCartStore } from "@/lib/store";
-import { formatCurrency } from "@/lib/utils";
 
 interface AddToCartProps {
-  productId: string;
-  variantId: string;
-  title: string;
-  price: number;
-  imageUrl: string;
+  product: {
+    id: string;
+    title: string;
+    basePrice: any;
+    variants?: { id: string; price: any; imageUrl?: string | null }[];
+  };
 }
 
-export function AddToCart({ productId, variantId, title, price, imageUrl }: AddToCartProps) {
+export function AddToCart({ product }: AddToCartProps) {
+  const [selectedVariantIndex] = useState(0);
   const addItem = useCartStore((state) => state.addItem);
+
+  const variant = product.variants && product.variants[selectedVariantIndex];
+  const price = variant ? Number(variant.price) : Number(product.basePrice);
+  const imageUrl = variant?.imageUrl || "";
+
+  function handleAddToCart() {
+    addItem({
+      id: variant ? variant.id : product.id,
+      title: product.title,
+      price: price,
+      imageUrl: imageUrl,
+      quantity: 1,
+    });
+  }
 
   return (
     <button
-      onClick={() =>
-        addItem({
-          productId,
-          variantId,
-          title,
-          price,
-          imageUrl,
-          quantity: 1,
-          attributes: {},
-        })
-      }
-      className="w-full mt-8 bg-white text-black font-semibold text-sm px-6 py-4 rounded-full hover:bg-neutral-200 transition-colors flex items-center justify-center gap-3"
+      onClick={handleAddToCart}
+      className="w-full py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
     >
-      <ShoppingBag className="w-5 h-5" />
-      {"Add to Cart"} — {formatCurrency(price)}
+      <ShoppingCart className="w-5 h-5" />
+      Add to Cart
     </button>
   );
 }
