@@ -1,10 +1,10 @@
-﻿'use client';
+'use client';
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { registerUser } from "@/actions/auth";
-import { Hexagon, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { Lock, Mail, User, ArrowRight } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -23,7 +23,12 @@ export default function RegisterPage() {
       setError(res.error);
       setLoading(false);
     } else {
-      router.push("/login");
+      if (res.userId) {
+        localStorage.setItem("novacart_user_id", res.userId);
+        localStorage.setItem("novacart_user_name", res.name || "Customer");
+      }
+      router.push("/products");
+      router.refresh();
     }
   }
 
@@ -31,9 +36,9 @@ export default function RegisterPage() {
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-neutral-900/50 border border-neutral-800 rounded-3xl p-8 backdrop-blur-md">
         <div className="flex flex-col items-center mb-8">
-          <Hexagon className="w-10 h-10 text-indigo-500 fill-indigo-500/20 mb-3" />
-          <h1 className="text-2xl font-bold text-white tracking-tight">Create Account</h1>
-          <p className="text-sm text-neutral-400 mt-1">Join NOVA for seamless purchasing</p>
+          <img src="/logo.png" alt="Nova Cart" className="h-10 w-auto object-contain mb-3" />
+          <h1 className="text-2xl font-bold text-white tracking-tight mt-2">Create Account</h1>
+          <p className="text-sm text-neutral-400 mt-1">Smart Shopping. Delivered.</p>
         </div>
 
         {error && (
@@ -50,6 +55,7 @@ export default function RegisterPage() {
               <input 
                 name="name" 
                 type="text" 
+                required 
                 placeholder="Abrar Khan" 
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-10 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-indigo-500 transition-colors"
               />
@@ -89,7 +95,7 @@ export default function RegisterPage() {
             disabled={loading}
             className="mt-2 w-full py-3.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? "Creating account..." : "Sign Up"}
+            {loading ? "Creating account..." : "Register"}
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
@@ -97,7 +103,7 @@ export default function RegisterPage() {
         <p className="text-center text-sm text-neutral-400 mt-6">
           Already have an account?{" "}
           <Link href="/login" className="text-indigo-400 hover:underline font-medium">
-            Sign in
+            Sign In
           </Link>
         </p>
       </div>
