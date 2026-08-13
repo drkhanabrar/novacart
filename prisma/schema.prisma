@@ -50,6 +50,7 @@ model ProductVariant {
   price     Decimal  @db.Decimal(10, 2)
   stock     Int      @default(0)
   imageUrl  String?
+  attributes  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
