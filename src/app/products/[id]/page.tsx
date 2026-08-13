@@ -11,7 +11,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
   if (!product) return notFound();
 
-  // Safely convert decimals to strings for React rendering and fallback nulls
   const displayPrice = product.basePrice.toString();
   const aiScore = product.intelligence?.aiScore?.toString() || "N/A";
   const imageUrl = (product.variants && product.variants.length > 0 && product.variants[0].imageUrl) ? product.variants[0].imageUrl : "";
@@ -20,7 +19,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
     <div className="min-h-screen bg-[#0a0a0a] text-white p-8">
       <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12">
         
-        {/* Product Image Section */}
         <div className="bg-neutral-900/50 border border-neutral-800 rounded-3xl p-8 flex items-center justify-center min-h-[400px]">
           {imageUrl ? (
             <img src={imageUrl} alt={product.title} className="max-w-full h-auto rounded-xl object-contain" />
@@ -32,7 +30,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
           )}
         </div>
         
-        {/* Product Details Section */}
         <div className="flex flex-col justify-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono mb-6 w-max backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5" />
@@ -52,6 +49,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
             </span>
           </div>
           
+          {/* Passing the exact required prop here to fix the TS2322 Error */}
           <AddToCart product={product} />
         </div>
       </div>
