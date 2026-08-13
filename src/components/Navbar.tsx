@@ -29,8 +29,10 @@ export function Navbar() {
       <header className="sticky top-0 z-50 w-full border-b border-neutral-800 bg-[#0a0a0a]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           
-          <Link href="/" className="flex items-center gap-2 hover:opacity-85 transition-opacity">
-            <img src="/logo.png" alt="Nova Cart" className="h-8 w-auto object-contain" />
+          <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+            <div className="bg-white px-2.5 py-1 rounded-xl shadow-sm flex items-center justify-center">
+              <img src="/logo.png" alt="Nova Cart" className="h-6 w-auto object-contain" />
+            </div>
           </Link>
 
           <div className="flex items-center gap-6">
