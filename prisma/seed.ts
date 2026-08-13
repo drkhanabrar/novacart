@@ -46,7 +46,8 @@ async function main() {
       productId: product.id,
       sku: 'NOVA-HP-BLK',
       price: 349.00,
-      attributes: { color: 'Black' },
+      name: "Base Edition",
+        attributes: { color: 'Black' },
       imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1200&q=80',
     }
   });
