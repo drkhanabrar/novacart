@@ -1,10 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { getMarketSignals } from "./market-signals";
 
 export class NovaEngine {
   /**
-   * Evaluates a product, generates intelligence data, and stores the AI Score.
-   * In a live enterprise environment, this would call external LLMs or ML models.
-   * Here we simulate the algorithmic decision-making process.
+   * Evaluates a product using REAL market signals (Google Trends + YouTube)
+   * and stores the resulting AI Score.
+   *
+   * NOTE: This score currently reflects DEMAND only. Competition and real
+   * profit margin require supplier cost data, which is added in Stage 3.
    */
   static async evaluateProduct(productId: string) {
     // 1. Fetch the product to ensure it exists
@@ -17,52 +20,56 @@ export class NovaEngine {
       throw new Error(`Product with ID ${productId} not found.`);
     }
 
-    // 2. Simulate AI Data Gathering (Market Demand, Competition, Margin)
-    // Real logic would query the MarketSignal and SupplierScore tables here.
-    const mockDemandScore = Math.floor(Math.random() * 40) + 60; // 60-100
-    const mockCompetitionPenalty = Math.floor(Math.random() * 30); // 0-30
-    const mockMarginBonus = Math.floor(Math.random() * 10); // 0-10
+    // 2. Pull real market signals using the product title as the search keyword
+    const signal = await getMarketSignals(product.title);
 
-    // 3. Calculate Overall AI Score
-    let overallScore = mockDemandScore - mockCompetitionPenalty + mockMarginBonus;
-    overallScore = Math.min(Math.max(overallScore, 0), 100); // Clamp between 0-100
+    // 3. Convert YouTube average views into a 0-100 score.
+    // Log-scaled so a single viral video (millions of views) doesn't
+    // completely dominate a product that has steady, modest interest.
+    const engagementScore = Math.min(
+      100,
+      Math.round(
+        (Math.log10(signal.youtubeAvgViews + 1) / Math.log10(1_000_000)) * 100
+      )
+    );
 
-    const demandLevel = overallScore > 80 ? "HIGH" : overallScore > 50 ? "MEDIUM" : "LOW";
-    
-    const signals = {
-      marketDemandLevel: demandLevel,
-      competitionIndex: mockCompetitionPenalty,
-      profitabilityBonus: mockMarginBonus,
-      trendVelocity: "RISING"
-    };
+    // 4. Combine into a demand score: 60% Google Trends, 40% YouTube engagement
+    let overallScore = Math.round(
+      signal.trendScore * 0.6 + engagementScore * 0.4
+    );
 
-    const explanation = `NOVA AI Engine scored this product at ${overallScore}/100. Demand is currently ${demandLevel}. The competition penalty is -${mockCompetitionPenalty} points, offset by a margin bonus of +${mockMarginBonus} points.`;
+    // 5. Adjust for direction: is interest growing or dying right now?
+    if (signal.trendDirection === "RISING") overallScore += 10;
+    if (signal.trendDirection === "FALLING") overallScore -= 10;
 
-    // 4. Run Database Transaction (All or Nothing)
-    // We use Prisma transactions to ensure data consistency across multiple tables.
-const transaction = await prisma.$transaction(async (tx) => {
-      // Upsert (Update or Insert) the ProductIntelligence record.
-      // Note: there is no separate raw-score table in the schema, so the
-      // explanation/signals are folded into this single record via `insights`.
-      const intelligence = await tx.productIntelligence.upsert({
-        where: { productId: productId },
-        update: {
-          aiScore: overallScore,
-          demandLevel: demandLevel,
-          profitabilityIndex: (product.basePrice.toNumber() * 0.4), // Mock profit margin
-          insights: explanation,
-          lastEvaluatedAt: new Date(),
-        },
-        create: {
-          productId: productId,
-          aiScore: overallScore,
-          demandLevel: demandLevel,
-          profitabilityIndex: (product.basePrice.toNumber() * 0.4),
-          insights: explanation,
-        },
-      });
+    overallScore = Math.min(Math.max(overallScore, 0), 100); // Clamp 0-100
 
-      return { score: overallScore, signals, intelligence };
+    const demandLevel =
+      overallScore > 80 ? "HIGH" : overallScore > 50 ? "MEDIUM" : "LOW";
+
+    const explanation =
+      `NOVA AI Engine scored "${product.title}" at ${overallScore}/100 using real market data. ` +
+      `Google Trends interest: ${signal.trendScore}/100, trend is ${signal.trendDirection}. ` +
+      `YouTube: ${signal.youtubeVideoCount} recent videos found, averaging ${signal.youtubeAvgViews.toLocaleString()} views each. ` +
+      `This score reflects demand only — competition and real profit margin will be factored in once supplier data is connected (Stage 3).`;
+
+    // 6. Save the result
+    const intelligence = await prisma.productIntelligence.upsert({
+      where: { productId: productId },
+      update: {
+        aiScore: overallScore,
+        demandLevel: demandLevel,
+        insights: explanation,
+        lastEvaluatedAt: new Date(),
+      },
+      create: {
+        productId: productId,
+        aiScore: overallScore,
+        demandLevel: demandLevel,
+        insights: explanation,
+      },
     });
+
+    return { score: overallScore, signal, intelligence };
   }
 }

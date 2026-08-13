@@ -25,14 +25,17 @@ async function main() {
   });
 
   // 3. Upsert Product
+  // NOTE: title is used as the search keyword for the NOVA AI Engine
+  // (Google Trends + YouTube), so it should describe the product the way
+  // a real shopper would search for it, not a made-up brand name.
   const product = await prisma.product.upsert({
-    where: { slug: 'nova-precision-headphones' },
-    update: {}, 
+    where: { slug: 'wireless-bluetooth-earbuds' },
+    update: {},
     create: {
-      title: 'Nova Precision Headphones',
-      slug: 'nova-precision-headphones',
-      description: 'Engineered with aerospace-grade aluminium and adaptive noise cancellation. These headphones dynamically adjust to your environment using edge-AI processing to deliver flawless acoustic clarity.',
-      basePrice: 349.00,
+      title: 'Wireless Bluetooth Earbuds',
+      slug: 'wireless-bluetooth-earbuds',
+      description: 'Compact true-wireless earbuds with active noise cancellation, touch controls, and a compact charging case. Built for everyday use, workouts, and commuting.',
+      basePrice: 1499.00,
       categoryId: audioCategory.id,
       brandId: novaBrand.id,
     },
@@ -40,15 +43,15 @@ async function main() {
 
   // 4. Upsert Variant
   await prisma.productVariant.upsert({
-    where: { sku: 'NOVA-HP-BLK' },
+    where: { sku: 'NOVA-EARBUDS-BLK' },
     update: {},
     create: {
       productId: product.id,
-      sku: 'NOVA-HP-BLK',
-      price: 349.00,
+      sku: 'NOVA-EARBUDS-BLK',
+      price: 1499.00,
       name: "Base Edition",
-        attributes: { color: 'Black' },
-      imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=1200&q=80',
+      attributes: { color: 'Black' },
+      imageUrl: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=1200&q=80',
     }
   });
 
@@ -64,13 +67,13 @@ async function main() {
     }
   });
 
-  console.log(`âœ… Seeded Product: ${product.title} successfully.`);
-  console.log('âœ… Database initialization complete.');
+  console.log(`✅ Seeded Product: ${product.title} successfully.`);
+  console.log('✅ Database initialization complete.');
 }
 
 main()
   .catch((e) => {
-    console.error('âŒ Seeding failed:');
+    console.error('❌ Seeding failed:');
     console.error(e);
     process.exit(1);
   })
