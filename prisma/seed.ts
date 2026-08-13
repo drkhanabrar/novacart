@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
@@ -39,7 +39,7 @@ async function main() {
   });
 
   // 4. Upsert Variant
-  await prisma.variant.upsert({
+  await prisma.productVariant.upsert({
     where: { sku: 'NOVA-HP-BLK' },
     update: {},
     create: {
@@ -63,13 +63,13 @@ async function main() {
     }
   });
 
-  console.log(`✅ Seeded Product: ${product.title} successfully.`);
-  console.log('✅ Database initialization complete.');
+  console.log(`âœ… Seeded Product: ${product.title} successfully.`);
+  console.log('âœ… Database initialization complete.');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding failed:');
+    console.error('âŒ Seeding failed:');
     console.error(e);
     process.exit(1);
   })

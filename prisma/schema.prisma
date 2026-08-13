@@ -62,6 +62,7 @@ model ProductIntelligence {
   profitabilityIndex Decimal? @db.Decimal(5, 2)
   demandLevel        String?
   insights           String?
+  lastEvaluatedAt    DateTime? @default(now())
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
