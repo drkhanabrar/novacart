@@ -42,7 +42,7 @@ export class NovaEngine {
     // We use Prisma transactions to ensure data consistency across multiple tables.
     const transaction = await prisma.$transaction(async (tx) => {
       // A. Save the raw AI Score for the Entity
-      const aiScore = await tx.aiScore.create({
+      const aiScore = await tx.productIntelligence.create({
         data: {
           entityType: "PRODUCT",
           entityId: productId,
