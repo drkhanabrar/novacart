@@ -40,25 +40,17 @@ export class NovaEngine {
 
     // 4. Run Database Transaction (All or Nothing)
     // We use Prisma transactions to ensure data consistency across multiple tables.
-    const transaction = await prisma.$transaction(async (tx) => {
-      // A. Save the raw AI Score for the Entity
-      const aiScore = await tx.productIntelligence.create({
-        data: {
-          entityType: "PRODUCT",
-          entityId: productId,
-          overallScore: overallScore,
-          contributingSignals: signals,
-          explanation: explanation,
-        },
-      });
-
-      // B. Upsert (Update or Insert) the ProductIntelligence record
+const transaction = await prisma.$transaction(async (tx) => {
+      // Upsert (Update or Insert) the ProductIntelligence record.
+      // Note: there is no separate raw-score table in the schema, so the
+      // explanation/signals are folded into this single record via `insights`.
       const intelligence = await tx.productIntelligence.upsert({
         where: { productId: productId },
         update: {
           aiScore: overallScore,
           demandLevel: demandLevel,
           profitabilityIndex: (product.basePrice.toNumber() * 0.4), // Mock profit margin
+          insights: explanation,
           lastEvaluatedAt: new Date(),
         },
         create: {
@@ -66,12 +58,11 @@ export class NovaEngine {
           aiScore: overallScore,
           demandLevel: demandLevel,
           profitabilityIndex: (product.basePrice.toNumber() * 0.4),
+          insights: explanation,
         },
       });
 
-      return { aiScore, intelligence };
+      return { score: overallScore, signals, intelligence };
     });
-
-    return transaction;
   }
 }
