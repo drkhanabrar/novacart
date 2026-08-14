@@ -121,3 +121,34 @@ export async function getMarketSignals(keyword: string): Promise<MarketSignal> {
     fetchedAt: new Date().toISOString(),
   };
 }
+
+export interface DemandScoreResult {
+  overallScore: number; // 0-100
+  demandLevel: "HIGH" | "MEDIUM" | "LOW";
+}
+
+/**
+ * Converts raw market signals into a single 0-100 demand score.
+ * Shared by the AI evaluation engine (nova-core.ts) and the product
+ * discovery pipeline, so both always agree on the same number.
+ */
+export function calculateDemandScore(signal: MarketSignal): DemandScoreResult {
+  const engagementScore = Math.min(
+    100,
+    Math.round(
+      (Math.log10(signal.youtubeAvgViews + 1) / Math.log10(1_000_000)) * 100
+    )
+  );
+
+  let overallScore = Math.round(signal.trendScore * 0.6 + engagementScore * 0.4);
+
+  if (signal.trendDirection === "RISING") overallScore += 10;
+  if (signal.trendDirection === "FALLING") overallScore -= 10;
+
+  overallScore = Math.min(Math.max(overallScore, 0), 100);
+
+  const demandLevel: DemandScoreResult["demandLevel"] =
+    overallScore > 80 ? "HIGH" : overallScore > 50 ? "MEDIUM" : "LOW";
+
+  return { overallScore, demandLevel };
+}

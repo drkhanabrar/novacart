@@ -1,16 +1,18 @@
 import { prisma } from "@/lib/prisma";
-import { getMarketSignals } from "./market-signals";
+import { getMarketSignals, calculateDemandScore } from "./market-signals";
+import { searchSupplierProducts, pickBestSupplierMatch } from "./cj-supplier";
+
+// Approximate, hardcoded USD -> INR rate. Good enough for a rough profit
+// estimate for now. A future stage should replace this with a live FX rate.
+export const APPROX_USD_TO_INR = 83;
 
 export class NovaEngine {
   /**
    * Evaluates a product using REAL market signals (Google Trends + YouTube)
-   * and stores the resulting AI Score.
-   *
-   * NOTE: This score currently reflects DEMAND only. Competition and real
-   * profit margin require supplier cost data, which is added in Stage 3.
+   * for demand, and a REAL CJ Dropshipping catalog match for supplier cost
+   * and profit margin. Stores the resulting AI Score.
    */
   static async evaluateProduct(productId: string) {
-    // 1. Fetch the product to ensure it exists
     const product = await prisma.product.findUnique({
       where: { id: productId },
       include: { category: true, brand: true },
@@ -20,40 +22,56 @@ export class NovaEngine {
       throw new Error(`Product with ID ${productId} not found.`);
     }
 
-    // 2. Pull real market signals using the product title as the search keyword
     const signal = await getMarketSignals(product.title);
+    const { overallScore, demandLevel } = calculateDemandScore(signal);
 
-    // 3. Convert YouTube average views into a 0-100 score.
-    // Log-scaled so a single viral video (millions of views) doesn't
-    // completely dominate a product that has steady, modest interest.
-    const engagementScore = Math.min(
-      100,
-      Math.round(
-        (Math.log10(signal.youtubeAvgViews + 1) / Math.log10(1_000_000)) * 100
-      )
-    );
+    // Find a real supplier match and compute a real profit estimate.
+    // If no confident match is found, we leave these fields empty rather
+    // than guessing — a wrong cost is worse than no cost.
+    let profitabilityIndex: number | null = null;
+    let supplierName: string | null = null;
+    let supplierProductId: string | null = null;
+    let supplierUrl: string | null = null;
+    let supplierCostUsd: number | null = null;
+    let matchConfidence: number | null = null;
+    let supplierNote: string;
 
-    // 4. Combine into a demand score: 60% Google Trends, 40% YouTube engagement
-    let overallScore = Math.round(
-      signal.trendScore * 0.6 + engagementScore * 0.4
-    );
+    try {
+      const supplierResults = await searchSupplierProducts(product.title, 10);
+      const match = pickBestSupplierMatch(supplierResults, product.title);
 
-    // 5. Adjust for direction: is interest growing or dying right now?
-    if (signal.trendDirection === "RISING") overallScore += 10;
-    if (signal.trendDirection === "FALLING") overallScore -= 10;
+      if (match) {
+        const costUsd = parseFloat(match.product.sellPrice);
+        const costInr = costUsd * APPROX_USD_TO_INR;
+        profitabilityIndex = product.basePrice.toNumber() - costInr;
 
-    overallScore = Math.min(Math.max(overallScore, 0), 100); // Clamp 0-100
+        supplierName = "CJ Dropshipping";
+        supplierProductId = match.product.productId;
+        supplierUrl = match.product.productUrl;
+        supplierCostUsd = costUsd;
+        matchConfidence = match.confidence;
 
-    const demandLevel =
-      overallScore > 80 ? "HIGH" : overallScore > 50 ? "MEDIUM" : "LOW";
+        supplierNote =
+          `Matched supplier: "${match.product.productName}" at $${costUsd} ` +
+          `(~₹${costInr.toFixed(0)}), ${match.confidence}% name match. ` +
+          `Estimated profit per unit: ₹${profitabilityIndex.toFixed(0)} ` +
+          `(using an approximate $1 = ₹${APPROX_USD_TO_INR} rate).`;
+      } else {
+        supplierNote =
+          "No confidently-matching supplier found on CJ Dropshipping — " +
+          "profit margin not calculated. Needs manual sourcing review.";
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      supplierNote = `Supplier lookup failed (${message}) — profit margin not calculated.`;
+    }
 
     const explanation =
       `NOVA AI Engine scored "${product.title}" at ${overallScore}/100 using real market data. ` +
       `Google Trends interest: ${signal.trendScore}/100, trend is ${signal.trendDirection}. ` +
       `YouTube: ${signal.youtubeVideoCount} recent videos found, averaging ${signal.youtubeAvgViews.toLocaleString()} views each. ` +
-      `This score reflects demand only — competition and real profit margin will be factored in once supplier data is connected (Stage 3).`;
+      supplierNote;
 
-    // 6. Save the result
     const intelligence = await prisma.productIntelligence.upsert({
       where: { productId: productId },
       update: {
@@ -61,12 +79,24 @@ export class NovaEngine {
         demandLevel: demandLevel,
         insights: explanation,
         lastEvaluatedAt: new Date(),
+        profitabilityIndex: profitabilityIndex,
+        supplierName: supplierName,
+        supplierProductId: supplierProductId,
+        supplierUrl: supplierUrl,
+        supplierCostUsd: supplierCostUsd,
+        matchConfidence: matchConfidence,
       },
       create: {
         productId: productId,
         aiScore: overallScore,
         demandLevel: demandLevel,
         insights: explanation,
+        profitabilityIndex: profitabilityIndex,
+        supplierName: supplierName,
+        supplierProductId: supplierProductId,
+        supplierUrl: supplierUrl,
+        supplierCostUsd: supplierCostUsd,
+        matchConfidence: matchConfidence,
       },
     });
 

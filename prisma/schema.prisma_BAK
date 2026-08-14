@@ -64,25 +64,26 @@ model ProductIntelligence {
   demandLevel        String?
   insights           String?
   lastEvaluatedAt    DateTime? @default(now())
-  matchConfidence    Int?
-  supplierCostUsd    Decimal? @db.Decimal(10, 2)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Real supplier match data (CJ Dropshipping), added in Stage 3.
+  // Left null whenever no confident match was found — never guess.
   supplierName       String?
   supplierProductId  String?
   supplierUrl        String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  supplierCostUsd    Decimal? @db.Decimal(10, 2)
+  matchConfidence    Int?
 }
 
 model User {
-  id                  String    @id @default(uuid())
-  email               String    @unique
-  passwordHash        String
-  name                String?
-  resetTokenHash      String?   @unique
-  resetTokenExpiresAt DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  orders              Order[]   @relation("UserOrders")
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  orders       Order[]  @relation("UserOrders")
 }
 
 model Order {

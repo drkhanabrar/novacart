@@ -58,6 +58,53 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.accessToken;
 }
 
+export interface SupplierMatch {
+  product: SupplierProduct;
+  confidence: number; // 0-100, based on shared meaningful words
+}
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 2); // drop tiny/noise words like "to", "of"
+}
+
+/**
+ * Picks the supplier result whose name best overlaps with our product
+ * title. CJ's keyword search often returns loosely-related junk (e.g.
+ * searching "wireless earbuds" can return a wireless mouse or a WiFi
+ * antenna) — we score every result and refuse to pick one at all if
+ * nothing clears the confidence bar, rather than silently attaching a
+ * wrong cost to a real product.
+ */
+export function pickBestSupplierMatch(
+  products: SupplierProduct[],
+  productTitle: string,
+  minConfidence = 50
+): SupplierMatch | null {
+  const titleWords = new Set(tokenize(productTitle));
+  if (titleWords.size === 0) return null;
+
+  let best: SupplierMatch | null = null;
+
+  for (const product of products) {
+    const nameWords = new Set(tokenize(product.productName));
+    let overlap = 0;
+    for (const w of titleWords) {
+      if (nameWords.has(w)) overlap++;
+    }
+    const confidence = Math.round((overlap / titleWords.size) * 100);
+
+    if (!best || confidence > best.confidence) {
+      best = { product, confidence };
+    }
+  }
+
+  if (!best || best.confidence < minConfidence) return null;
+  return best;
+}
+
 /**
  * Searches CJ Dropshipping's live catalog for a keyword and returns
  * real, currently-orderable products with real supplier pricing.
@@ -82,7 +129,7 @@ export async function searchSupplierProducts(
     throw new Error(`CJ product search failed: ${data.message ?? "Unknown error."}`);
   }
 
-// CJ's listV2 endpoint nests results as: data.content[0].productList[]
+  // CJ's listV2 endpoint nests results as: data.content[0].productList[]
   // (data.content is an array containing one wrapper object per keyword group).
   const list =
     data.data?.content?.[0]?.productList ??
