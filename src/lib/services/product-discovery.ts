@@ -121,7 +121,7 @@ export async function discoverAndCreateProduct(params: {
       sku: `CJ-${match.product.productId}`,
       price: sellPriceInr,
       name: "Standard",
-      imageUrl: match.product.productImage, // real supplier image, no scraping
+      imageUrl: match.product.productImage || null, // real supplier image, no scraping; null if CJ didn't provide one
       attributes: {
         hindiTitle: listing.titleHi,
         hindiDescription: listing.descriptionHi,

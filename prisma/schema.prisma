@@ -39,6 +39,10 @@ model Product {
   orderItems   OrderItem[]
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
+
+  // Soft-delist flag (Stage 5). Hidden products stay in the database with
+  // full history — never hard-deleted — but are excluded from the storefront.
+  isActive     Boolean              @default(true)
 }
 
 model ProductVariant {
@@ -65,6 +69,11 @@ model ProductIntelligence {
   insights           String?
   lastEvaluatedAt    DateTime? @default(now())
   matchConfidence    Int?
+
+  // Stage 5: counts consecutive low-demand readings. The free Google Trends
+  // data source is noisy between calls, so we require 2 in a row before
+  // actually delisting — protects against a single bad reading.
+  consecutiveLowReadings Int @default(0)
   supplierCostUsd    Decimal? @db.Decimal(10, 2)
   supplierName       String?
   supplierProductId  String?

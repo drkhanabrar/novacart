@@ -11,7 +11,9 @@
     "supplier": "tsx scripts/supplier-search.ts",
     "listing": "tsx scripts/listing-test.ts",
     "discover": "tsx scripts/discover.ts",
-    "dbtest": "tsx scripts/db-test.ts"
+    "dbtest": "tsx scripts/db-test.ts",
+	"schemacheck": "tsx scripts/schema-check.ts",
+	"review": "tsx scripts/review-products.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

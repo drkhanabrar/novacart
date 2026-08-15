@@ -5,7 +5,8 @@ import { formatCurrency } from "@/lib/utils";
 
 export default async function ProductsCatalogPage() {
   // Fetch all products from Supabase, including their variants and AI intelligence
-  const products = await prisma.product.findMany({
+ const products = await prisma.product.findMany({
+    where: { isActive: true },
     include: {
       variants: true,
       category: true,
@@ -34,13 +35,19 @@ export default async function ProductsCatalogPage() {
               href={`/products/${product.slug}`}
               className="group flex flex-col gap-4 bg-neutral-900/50 border border-neutral-800 rounded-3xl p-4 hover:border-neutral-700 transition-colors"
             >
-              {/* Product Image Gallery */}
+{/* Product Image Gallery */}
               <div className="aspect-square relative overflow-hidden rounded-2xl bg-neutral-900">
-                <img
-                  src={mainVariant?.imageUrl || ""}
-                  alt={product.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                {mainVariant?.imageUrl ? (
+                  <img
+                    src={mainVariant.imageUrl}
+                    alt={product.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-neutral-700">
+                    <Cpu className="w-10 h-10" />
+                  </div>
+                )}
                 
                 {/* NOVA AI Intelligence Badge */}
                 {product.intelligence && (

@@ -1,9 +1,17 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-import { discoverAndCreateProduct } from "../src/lib/services/product-discovery";
-
 async function main() {
+  // IMPORTANT: this import must stay dynamic (await import(...)), not a
+  // static `import ... from`. Static ES module imports are hoisted and
+  // evaluated BEFORE the config() call above, regardless of where they're
+  // written in the file — which would make prisma.ts read an empty
+  // DATABASE_URL and silently fall back to localhost, causing a confusing
+  // ECONNREFUSED error even though the real DATABASE_URL is correct.
+  const { discoverAndCreateProduct } = await import(
+    "../src/lib/services/product-discovery"
+  );
+
   const keyword = process.argv.slice(2).join(" ");
 
   if (!keyword) {
