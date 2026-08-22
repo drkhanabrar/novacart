@@ -401,6 +401,67 @@ export async function getPendingRazorpayOrder(
   }
 }
 
+export async function deletePendingRazorpayOrder(orderId: string) {
+  const user = await requireUser();
+
+  try {
+    if (!orderId) {
+      return {
+        success: false as const,
+        error: "Invalid order.",
+      };
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        userId: user.id,
+        paymentMethod: "RAZORPAY",
+        status: "PENDING",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!order) {
+      return {
+        success: false as const,
+        error: "This pending order could not be found.",
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.orderItem.deleteMany({
+        where: {
+          orderId: order.id,
+        },
+      });
+
+      await tx.order.delete({
+        where: {
+          id: order.id,
+        },
+      });
+    });
+
+    revalidatePath("/orders");
+    revalidatePath(`/orders/${order.id}`);
+
+    return {
+      success: true as const,
+    };
+  } catch (error) {
+    console.error("deletePendingRazorpayOrder failed:", error);
+
+    return {
+      success: false as const,
+      error:
+        "We could not remove this pending order. Please try again.",
+    };
+  }
+}
+
 export async function verifyRazorpayPayment(
   localOrderId: string,
   razorpayOrderId: string,

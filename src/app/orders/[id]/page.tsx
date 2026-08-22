@@ -1,18 +1,21 @@
+// FILE: src/app/orders/[id]/page.tsx
+
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
+  AlertCircle,
   Check,
   ChevronRight,
   CreditCard,
   MapPin,
   Truck,
-  AlertCircle,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import PayPendingOrderButton from "@/components/PayPendingOrderButton";
+import CancelPendingOrderButton from "@/components/CancelPendingOrderButton";
 
 const STEPS = [
   "PENDING",
@@ -69,10 +72,7 @@ export default async function OrderDetailPage({
 
   const currentIndex = STEPS.indexOf(order.status);
 
-  const address = (order.shippingAddress || {}) as Record<
-    string,
-    any
-  >;
+  const address = (order.shippingAddress || {}) as Record<string, any>;
 
   const shippingFee = Number(address.shippingFee || 0);
 
@@ -130,8 +130,8 @@ export default async function OrderDetailPage({
               </h2>
 
               <p className="mt-1 text-sm leading-6 text-ink-soft">
-                Your order has been created, but the Razorpay payment
-                has not been completed yet.
+                Your order has been created, but the Razorpay payment has not
+                been completed yet.
               </p>
 
               <p className="mt-2 text-sm font-semibold text-ink">
@@ -142,16 +142,17 @@ export default async function OrderDetailPage({
                 orderId={order.id}
                 amount={Number(order.total)}
               />
+
+              <CancelPendingOrderButton orderId={order.id} />
             </div>
           </div>
         </div>
       )}
 
-      {order.status === "CANCELLED" ||
-      order.status === "REFUNDED" ? (
+      {order.status === "CANCELLED" || order.status === "REFUNDED" ? (
         <div className="mt-8 rounded-2xl border border-poppy/20 bg-poppy/5 p-5 text-sm text-poppy-dark">
-          This order is {order.status.toLowerCase()}. If you need
-          help, contact NovaCart support.
+          This order is {order.status.toLowerCase()}. If you need help,
+          contact NovaCart support.
         </div>
       ) : (
         <div className="mt-10 rounded-[2rem] border border-ink/10 bg-card p-6 shadow-sm sm:p-8">
@@ -160,10 +161,7 @@ export default async function OrderDetailPage({
               const active = currentIndex >= index;
 
               return (
-                <div
-                  key={step}
-                  className="relative text-center"
-                >
+                <div key={step} className="relative text-center">
                   <div
                     className={`mx-auto grid h-9 w-9 place-items-center rounded-full border-2 ${
                       active
@@ -180,9 +178,7 @@ export default async function OrderDetailPage({
 
                   <p
                     className={`mt-3 text-[9px] font-bold uppercase tracking-[0.12em] ${
-                      active
-                        ? "text-ink"
-                        : "text-ink-soft/60"
+                      active ? "text-ink" : "text-ink-soft/60"
                     }`}
                   >
                     {step}
@@ -191,9 +187,7 @@ export default async function OrderDetailPage({
                   {index < STEPS.length - 1 && (
                     <span
                       className={`absolute left-1/2 top-[17px] h-[2px] w-full -translate-y-1/2 ${
-                        currentIndex > index
-                          ? "bg-poppy"
-                          : "bg-ink/10"
+                        currentIndex > index ? "bg-poppy" : "bg-ink/10"
                       }`}
                     />
                   )}
@@ -208,9 +202,7 @@ export default async function OrderDetailPage({
         <section className="space-y-5">
           <div className="rounded-[2rem] border border-ink/10 bg-card p-6 shadow-sm sm:p-7">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-bold text-ink">
-                Items
-              </h2>
+              <h2 className="text-lg font-bold text-ink">Items</h2>
 
               <span className="font-tag text-[10px] uppercase tracking-[0.14em] text-ink-soft">
                 {order.items.length} item(s)
@@ -219,10 +211,9 @@ export default async function OrderDetailPage({
 
             <div className="mt-5 divide-y divide-ink/10">
               {order.items.map((item: any) => {
-                const image =
-                  item.product?.variants?.find(
-                    (variant: any) => variant.imageUrl
-                  )?.imageUrl;
+                const image = item.product?.variants?.find(
+                  (variant: any) => variant.imageUrl
+                )?.imageUrl;
 
                 return (
                   <div
@@ -233,10 +224,7 @@ export default async function OrderDetailPage({
                       {image ? (
                         <img
                           src={image}
-                          alt={
-                            item.product?.title ||
-                            "Product"
-                          }
+                          alt={item.product?.title || "Product"}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -253,17 +241,13 @@ export default async function OrderDetailPage({
 
                       <p className="mt-1 text-xs text-ink-soft">
                         Qty {item.quantity} ·{" "}
-                        {formatCurrency(
-                          Number(item.price)
-                        )}{" "}
-                        each
+                        {formatCurrency(Number(item.price))} each
                       </p>
                     </div>
 
                     <span className="shrink-0 font-tag text-sm font-bold text-ink">
                       {formatCurrency(
-                        Number(item.price) *
-                          item.quantity
+                        Number(item.price) * item.quantity
                       )}
                     </span>
                   </div>
@@ -284,12 +268,9 @@ export default async function OrderDetailPage({
                 {address.fullName}
                 <br />
                 {address.line1}
-                {address.line2
-                  ? `, ${address.line2}`
-                  : ""}
+                {address.line2 ? `, ${address.line2}` : ""}
                 <br />
-                {address.city}, {address.state}{" "}
-                {address.postalCode}
+                {address.city}, {address.state} {address.postalCode}
                 <br />
                 {address.country}
                 <br />
@@ -311,55 +292,43 @@ export default async function OrderDetailPage({
                 </strong>
                 <br />
                 Status:{" "}
-                <strong
-                  className={statusColor(
-                    order.status
-                  )}
-                >
+                <strong className={statusColor(order.status)}>
                   {order.status}
                 </strong>
 
                 {order.paidAt && (
                   <>
                     <br />
-                    Paid:{" "}
-                    {new Date(
-                      order.paidAt
-                    ).toLocaleString("en-IN")}
+                    Paid: {new Date(order.paidAt).toLocaleString("en-IN")}
                   </>
                 )}
               </p>
+
+              {isPendingRazorpay && (
+                <div className="mt-4 rounded-xl bg-marigold/5 px-3 py-2 text-xs text-marigold">
+                  Payment is required to confirm this order.
+                </div>
+              )}
             </div>
           </div>
         </section>
 
         <aside className="h-max lg:sticky lg:top-24">
           <div className="rounded-[2rem] border border-ink/10 bg-card p-6 shadow-[0_20px_60px_rgba(42,31,26,0.07)] sm:p-7">
-            <span className="section-kicker">
-              Summary
-            </span>
+            <span className="section-kicker">Summary</span>
 
             <div className="mt-6 space-y-3 text-sm">
               <div className="flex justify-between text-ink-soft">
                 <span>Items</span>
-
                 <span>
-                  {formatCurrency(
-                    Number(order.total) -
-                      shippingFee
-                  )}
+                  {formatCurrency(Number(order.total) - shippingFee)}
                 </span>
               </div>
 
               <div className="flex justify-between text-ink-soft">
                 <span>Delivery</span>
-
                 <span>
-                  {shippingFee
-                    ? formatCurrency(
-                        shippingFee
-                      )
-                    : "Free"}
+                  {shippingFee ? formatCurrency(shippingFee) : "Free"}
                 </span>
               </div>
             </div>
@@ -370,11 +339,16 @@ export default async function OrderDetailPage({
               </span>
 
               <span className="font-tag text-2xl font-bold text-ink">
-                {formatCurrency(
-                  Number(order.total)
-                )}
+                {formatCurrency(Number(order.total))}
               </span>
             </div>
+
+            {isPendingRazorpay && (
+              <PayPendingOrderButton
+                orderId={order.id}
+                amount={Number(order.total)}
+              />
+            )}
 
             <div className="mt-6 rounded-2xl bg-cream p-4 text-xs leading-5 text-ink-soft">
               <div className="flex items-center gap-2 font-semibold text-ink">
@@ -383,9 +357,8 @@ export default async function OrderDetailPage({
               </div>
 
               <p className="mt-2">
-                Your saved contact details are used
-                for order updates. Tracking information
-                will appear here once the order is
+                Your saved contact details are used for order updates.
+                Tracking information will appear here once the order is
                 shipped.
               </p>
             </div>
