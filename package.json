@@ -12,8 +12,8 @@
     "listing": "tsx scripts/listing-test.ts",
     "discover": "tsx scripts/discover.ts",
     "dbtest": "tsx scripts/db-test.ts",
-	"schemacheck": "tsx scripts/schema-check.ts",
-	"review": "tsx scripts/review-products.ts"
+    "schemacheck": "tsx scripts/schema-check.ts",
+    "review": "tsx scripts/review-products.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
@@ -24,6 +24,7 @@
     "lucide-react": "^1.16.0",
     "next": "16.3.0",
     "pg": "^8.23.0",
+    "razorpay": "^2.9.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.20.0",

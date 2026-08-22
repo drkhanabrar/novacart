@@ -10,18 +10,18 @@ model Category {
   id        String    @id @default(uuid())
   name      String    @unique
   slug      String    @unique
-  products  Product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  products  Product[]
 }
 
 model Brand {
   id        String    @id @default(uuid())
   name      String    @unique
   slug      String    @unique
-  products  Product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  products  Product[]
 }
 
 model Product {
@@ -31,88 +31,145 @@ model Product {
   description  String?
   basePrice    Decimal              @db.Decimal(10, 2)
   categoryId   String?
-  category     Category?            @relation(fields: [categoryId], references: [id])
-  brandId      String?
-  brand        Brand?               @relation(fields: [brandId], references: [id])
-  variants     ProductVariant[]
-  intelligence ProductIntelligence?
-  orderItems   OrderItem[]
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
-
-  // Soft-delist flag (Stage 5). Hidden products stay in the database with
-  // full history — never hard-deleted — but are excluded from the storefront.
+  brandId      String?
   isActive     Boolean              @default(true)
+  orderItems   OrderItem[]
+  brand        Brand?               @relation(fields: [brandId], references: [id])
+  category     Category?            @relation(fields: [categoryId], references: [id])
+  intelligence ProductIntelligence?
+  variants     ProductVariant[]
 }
 
 model ProductVariant {
-  id        String   @id @default(uuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name      String
-  sku       String   @unique
-  price     Decimal  @db.Decimal(10, 2)
-  stock     Int      @default(0)
-  imageUrl  String?
-  attributes  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  productId  String
+  name       String
+  sku        String   @unique
+  price      Decimal  @db.Decimal(10, 2)
+  stock      Int      @default(0)
+  imageUrl   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  attributes Json?
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model ProductIntelligence {
-  id                 String   @id @default(uuid())
-  productId          String   @unique
-  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  aiScore            Decimal  @db.Decimal(5, 2)
-  profitabilityIndex Decimal? @db.Decimal(10, 2)
-  demandLevel        String?
-  insights           String?
-  lastEvaluatedAt    DateTime? @default(now())
-  matchConfidence    Int?
-
-  // Stage 5: counts consecutive low-demand readings. The free Google Trends
-  // data source is noisy between calls, so we require 2 in a row before
-  // actually delisting — protects against a single bad reading.
-  consecutiveLowReadings Int @default(0)
-  supplierCostUsd    Decimal? @db.Decimal(10, 2)
-  supplierName       String?
-  supplierProductId  String?
-  supplierUrl        String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                     String    @id @default(uuid())
+  productId              String    @unique
+  aiScore                Decimal   @db.Decimal(5, 2)
+  insights               String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  demandLevel            String?
+  lastEvaluatedAt        DateTime? @default(now())
+  profitabilityIndex     Decimal?  @db.Decimal(10, 2)
+  matchConfidence        Int?
+  supplierCostUsd        Decimal?  @db.Decimal(10, 2)
+  supplierName           String?
+  supplierProductId      String?
+  supplierUrl            String?
+  consecutiveLowReadings Int       @default(0)
+  product                Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model User {
-  id                  String    @id @default(uuid())
-  email               String    @unique
+  id                  String        @id @default(uuid())
+  email               String        @unique
   passwordHash        String
   name                String?
-  resetTokenHash      String?   @unique
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
   resetTokenExpiresAt DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  orders              Order[]   @relation("UserOrders")
+  resetTokenHash      String?       @unique
+  phone               String?
+  orders              Order[]       @relation("UserOrders")
+  sessions            Session[]
+  addresses           UserAddress[]
 }
 
 model Order {
-  id        String      @id @default(uuid())
-  userId    String
-  user      User        @relation("UserOrders", fields: [userId], references: [id])
-  total     Decimal     @db.Decimal(10, 2)
-  status    String      @default("PENDING")
-  items     OrderItem[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id                String      @id @default(uuid())
+  userId            String
+  total             Decimal     @db.Decimal(10, 2)
+  status            String      @default("PENDING")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  contactPhone      String?
+  paymentMethod     String      @default("COD")
+  shippingAddress   Json?
+  paidAt            DateTime?
+  razorpayOrderId   String?     @unique
+  razorpayPaymentId String?     @unique
+  user              User        @relation("UserOrders", fields: [userId], references: [id])
+  items             OrderItem[]
 }
 
 model OrderItem {
   id        String   @id @default(uuid())
   orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id])
   quantity  Int      @default(1)
   price     Decimal  @db.Decimal(10, 2)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id])
+
+  fulfillment SupplierFulfillment?
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model UserAddress {
+  id         String   @id @default(uuid())
+  userId     String
+  label      String   @default("Home")
+  fullName   String
+  phone      String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postalCode String
+  country    String   @default("India")
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Stage 6: tracks what needs to be ordered from a real-world supplier for
+// each paid order line. This is DELIBERATELY a staging/checklist system,
+// not an auto-purchaser — placing the real supplier order (which spends
+// real money) is still a manual, deliberate human action.
+model SupplierFulfillment {
+  id            String      @id @default(uuid())
+  orderItemId   String      @unique
+  orderItem     OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  supplierName      String?
+  supplierProductId String?
+  supplierUrl       String?
+  supplierCostUsd   Decimal? @db.Decimal(10, 2)
+
+  status        String      @default("PENDING_REVIEW")
+  notes         String?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }

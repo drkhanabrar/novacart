@@ -1,0 +1,1 @@
+export default function AccountLoading(){return <main className="mx-auto max-w-7xl px-5 py-12 sm:px-6"><div className="skeleton h-4 w-28"/><div className="skeleton mt-4 h-12 w-64"/><div className="mt-10 grid gap-6 lg:grid-cols-[260px_1fr]"><div className="skeleton h-72 rounded-[2rem]"/><div className="skeleton h-96 rounded-[2rem]"/></div></main>}

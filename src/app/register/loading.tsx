@@ -1,0 +1,1 @@
+export default function RegisterLoading(){return <main className="flex min-h-[70vh] items-center justify-center px-5 py-12"><div className="skeleton h-[780px] w-full max-w-3xl rounded-[2rem]"/></main>}

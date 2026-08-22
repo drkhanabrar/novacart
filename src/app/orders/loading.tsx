@@ -1,0 +1,1 @@
+export default function OrdersLoading(){return <main className="mx-auto max-w-6xl px-5 py-12 sm:px-6"><div className="skeleton h-4 w-24"/><div className="skeleton mt-4 h-12 w-64"/><div className="mt-10 space-y-4">{Array.from({length:3}).map((_,i)=><div key={i} className="skeleton h-44 rounded-[2rem]"/>)}</div></main>}

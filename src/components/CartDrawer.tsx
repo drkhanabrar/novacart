@@ -1,126 +1,14 @@
-﻿'use client';
+"use client";
 
-import { useState } from "react";
-import { X, Trash2, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { Trash2, X, ArrowRight, ShoppingBag } from "lucide-react";
 import { useCartStore } from "@/lib/store";
 import { formatCurrency } from "@/lib/utils";
-import { createOrder } from "@/actions/checkout";
 
-interface CartDrawerProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
+interface CartDrawerProps { isOpen: boolean; onClose: () => void; }
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
-  const { items, removeItem, clearCart } = useCartStore();
-  const [loading, setLoading] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  
+  const { items, removeItem } = useCartStore();
   const total = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-
-  async function handleCheckout() {
-    setLoading(true);
-    setError(null);
-
-    const userId = localStorage.getItem("novacart_user_id");
-    if (!userId) {
-      setError("Please sign in first to complete your checkout.");
-      setLoading(false);
-      return;
-    }
-
-    const res = await createOrder(userId, items);
-
-    if (res.error) {
-      setError(res.error);
-      setLoading(false);
-    } else {
-      setOrderSuccess(res.orderId || "Success");
-      clearCart();
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
-          onClick={onClose}
-        />
-      )}
-      
-      <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-[#0a0a0a] border-l border-neutral-800 z-50 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}>
-        <div className="flex items-center justify-between p-6 border-b border-neutral-800">
-          <h2 className="text-xl font-bold text-white">Your Cart</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-white transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-          {orderSuccess ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center gap-3">
-              <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-              <h3 className="text-lg font-bold text-white">Order Confirmed!</h3>
-              <p className="text-sm text-neutral-400">Your order has been successfully saved to Supabase.</p>
-              <p className="text-xs font-mono text-neutral-500 mt-2">ID: {orderSuccess}</p>
-              <button 
-                onClick={() => { setOrderSuccess(null); onClose(); }} 
-                className="mt-4 px-6 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-sm font-semibold transition-colors"
-              >
-                Continue Shopping
-              </button>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-neutral-500">
-              Your cart is empty.
-            </div>
-          ) : (
-            items.map((item) => (
-              <div key={item.id} className="flex gap-4">
-                <div className="w-20 h-20 bg-neutral-900 rounded-xl overflow-hidden flex-shrink-0">
-                  <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-white line-clamp-1">{item.title}</h3>
-                    <p className="text-xs text-neutral-400 mt-1">Qty: {item.quantity}</p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-emerald-400">{formatCurrency(item.price)}</span>
-                    <button onClick={() => removeItem(item.id)} className="text-neutral-500 hover:text-red-400 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-        
-        {!orderSuccess && items.length > 0 && (
-          <div className="p-6 border-t border-neutral-800 bg-neutral-900/50">
-            {error && (
-              <div className="mb-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs text-center">
-                {error}
-              </div>
-            )}
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm text-neutral-400">Total</span>
-              <span className="text-xl font-bold text-white">{formatCurrency(total)}</span>
-            </div>
-            <button 
-              onClick={handleCheckout}
-              disabled={loading}
-              className="w-full py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Processing..." : "Checkout & Save Order"}
-            </button>
-          </div>
-        )}
-      </div>
-    </>
-  );
+  return <><div className={`fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm transition-opacity ${isOpen?"opacity-100":"pointer-events-none opacity-0"}`} onClick={onClose}/><aside className={`fixed right-0 top-0 z-[60] flex h-full w-full max-w-[420px] flex-col border-l border-ink/10 bg-card shadow-2xl transition-transform duration-300 ${isOpen?"translate-x-0":"translate-x-full"}`} aria-hidden={!isOpen}><div className="flex items-center justify-between border-b border-ink/10 p-6"><div><span className="font-tag text-[9px] uppercase tracking-[.18em] text-poppy">NovaCart</span><h2 className="font-display italic text-2xl text-ink">Your bag.</h2></div><button onClick={onClose} aria-label="Close bag" className="rounded-full p-2 text-ink-soft hover:bg-cream hover:text-ink"><X className="h-5 w-5"/></button></div><div className="flex-1 overflow-y-auto p-6">{items.length===0?<div className="flex h-full flex-col items-center justify-center text-center"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-cream text-ink-soft"><ShoppingBag className="h-6 w-6"/></div><p className="mt-4 text-sm font-semibold text-ink">Your bag is empty.</p><p className="mt-1 text-xs text-ink-soft">Add something lovely and come back here.</p></div>:<div className="space-y-5">{items.map(item=><div key={item.id} className="flex gap-4"><div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-cream"><img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover"/></div><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold text-ink">{item.title}</h3><p className="mt-1 text-xs text-ink-soft">Qty: {item.quantity||1}</p><div className="mt-3 flex items-center justify-between"><span className="font-tag text-sm font-bold text-poppy">{formatCurrency(item.price*(item.quantity||1))}</span><button onClick={()=>removeItem(item.id)} aria-label={`Remove ${item.title}`} className="text-ink-soft hover:text-poppy"><Trash2 className="h-4 w-4"/></button></div></div></div>)}</div>}</div>{items.length>0&&<div className="border-t border-ink/10 bg-cream/70 p-6"><div className="mb-4 flex items-center justify-between"><span className="text-sm text-ink-soft">Total</span><span className="font-tag text-xl font-bold text-ink">{formatCurrency(total)}</span></div><Link href="/checkout" onClick={onClose} className="flex w-full items-center justify-center gap-2 rounded-xl bg-poppy py-4 text-sm font-bold text-white hover:bg-poppy-dark">Proceed to checkout<ArrowRight className="h-4 w-4"/></Link><p className="mt-3 text-center text-[11px] text-ink-soft">You&apos;ll choose your saved delivery address at checkout.</p></div>}</aside></>;
 }

@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NovaCart Optional Dark Mode
 
-## Getting Started
+This patch adds an optional dark mode while leaving the original Korean Pink / cream theme as the default.
 
-First, run the development server:
+## 1. Copy these files
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- `src/components/ThemeToggle.tsx`
+- `src/components/ThemeInitScript.tsx`
+- `dark-mode.css`
+
+## 2. Load the CSS
+
+Import `dark-mode.css` immediately after your existing `globals.css` import in `src/app/layout.tsx`:
+
+```tsx
+import "./globals.css";
+import "./dark-mode.css";
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or merge the contents of `dark-mode.css` into `globals.css`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 3. Add the initialization script
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Inside `<body>`, before the Navbar, add:
 
-## Learn More
+```tsx
+<ThemeInitScript />
+<Navbar ... />
+```
 
-To learn more about Next.js, take a look at the following resources:
+Add the import:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```tsx
+import { ThemeInitScript } from "@/components/ThemeInitScript";
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 4. Add the theme button to the existing Navbar
 
-## Deploy on Vercel
+Do NOT replace the existing Navbar. Import:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```tsx
+import { ThemeToggle } from "@/components/ThemeToggle";
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Then place `<ThemeToggle />` inside the existing right-side header actions, next to the account/cart controls.
+
+## Behavior
+
+- Original Korean Pink / cream theme remains the default.
+- Clicking the button toggles Light ↔ Dark.
+- Theme is persisted in `localStorage`.
+- Theme is restored before the page paints to minimize flash.
+- Product images and existing storefront layout are not replaced or redesigned.
