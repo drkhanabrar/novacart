@@ -1,3 +1,5 @@
+// FILE: src/actions/checkout.ts
+
 "use server";
 
 import crypto from "node:crypto";
@@ -87,7 +89,7 @@ async function buildOrderData(
   const resolveProduct = (itemId: string) =>
     products.find((candidate) => candidate.id === itemId) ??
     products.find((candidate) =>
-      candidate.variants.some((variant) => variant.id === itemId)
+      candidate.variants.some((variant) => variant.id === itemId),
     );
 
   if (products.length === 0) {
@@ -162,9 +164,6 @@ async function buildOrderData(
   };
 }
 
-/**
- * Stage 6: stages a supplier fulfillment checklist entry for one order item.
- */
 async function stageFulfillment(
   tx: Prisma.TransactionClient,
   orderItem: { id: string; productId: string },
@@ -191,10 +190,6 @@ async function stageFulfillment(
   });
 }
 
-/* -------------------------------------------------------------------------- */
-/* Razorpay result types                                                       */
-/* -------------------------------------------------------------------------- */
-
 type CreateRazorpayOrderSuccess = {
   success: true;
   orderId: string;
@@ -213,9 +208,23 @@ type CreateRazorpayOrderResult =
   | CreateRazorpayOrderSuccess
   | CreateRazorpayOrderFailure;
 
-/* -------------------------------------------------------------------------- */
-/* Create Razorpay order                                                       */
-/* -------------------------------------------------------------------------- */
+type PendingRazorpayOrderSuccess = {
+  success: true;
+  orderId: string;
+  razorpayOrderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+};
+
+type PendingRazorpayOrderFailure = {
+  success: false;
+  error: string;
+};
+
+type PendingRazorpayOrderResult =
+  | PendingRazorpayOrderSuccess
+  | PendingRazorpayOrderFailure;
 
 export async function createRazorpayOrder(
   items: { id: string; quantity: number }[],
@@ -259,11 +268,6 @@ export async function createRazorpayOrder(
       const razorpayAmount = Number(razorpayOrder.amount);
       const razorpayCurrency = String(razorpayOrder.currency);
 
-      /*
-       * getRazorpay() has already guaranteed that these environment
-       * variables exist, so the success result can safely expose
-       * them as required strings.
-       */
       const keyId = RAZORPAY_KEY_ID;
 
       if (!keyId) {
@@ -317,9 +321,85 @@ export async function createRazorpayOrder(
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Verify Razorpay payment                                                     */
-/* -------------------------------------------------------------------------- */
+export async function getPendingRazorpayOrder(
+  orderId: string,
+): Promise<PendingRazorpayOrderResult> {
+  const user = await requireUser();
+
+  try {
+    if (!orderId) {
+      return {
+        success: false,
+        error: "Invalid order.",
+      };
+    }
+
+    const order = await prisma.order.findFirst({
+      where: {
+        id: orderId,
+        userId: user.id,
+        paymentMethod: "RAZORPAY",
+      },
+      select: {
+        id: true,
+        total: true,
+        status: true,
+        razorpayOrderId: true,
+      },
+    });
+
+    if (!order) {
+      return {
+        success: false,
+        error: "Order could not be found.",
+      };
+    }
+
+    if (order.status === "PAID") {
+      return {
+        success: false,
+        error: "This order has already been paid.",
+      };
+    }
+
+    if (order.status !== "PENDING") {
+      return {
+        success: false,
+        error: "This order is no longer available for payment.",
+      };
+    }
+
+    if (!order.razorpayOrderId) {
+      return {
+        success: false,
+        error: "This order does not have a valid Razorpay payment order.",
+      };
+    }
+
+    if (!RAZORPAY_KEY_ID) {
+      return {
+        success: false,
+        error: "Razorpay is not configured correctly.",
+      };
+    }
+
+    return {
+      success: true,
+      orderId: String(order.id),
+      razorpayOrderId: String(order.razorpayOrderId),
+      amount: Math.round(Number(order.total) * 100),
+      currency: "INR",
+      keyId: RAZORPAY_KEY_ID,
+    };
+  } catch (error) {
+    console.error("getPendingRazorpayOrder failed:", error);
+
+    return {
+      success: false,
+      error: "We could not prepare the payment. Please try again.",
+    };
+  }
+}
 
 export async function verifyRazorpayPayment(
   localOrderId: string,
@@ -384,10 +464,6 @@ export async function verifyRazorpayPayment(
     };
   }
 }
-
-/* -------------------------------------------------------------------------- */
-/* COD order                                                                   */
-/* -------------------------------------------------------------------------- */
 
 export async function createOrder(
   items: { id: string; quantity: number }[],
@@ -501,10 +577,6 @@ export async function createOrder(
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/* Mark order paid                                                             */
-/* -------------------------------------------------------------------------- */
-
 export async function markOrderPaid(input: {
   localOrderId: string;
   userId?: string;
@@ -533,12 +605,6 @@ export async function markOrderPaid(input: {
           throw new Error("ORDER_NOT_FOUND");
         }
 
-        /*
-         * Idempotency guard:
-         * if the client callback and Razorpay webhook both arrive,
-         * only the first successful path performs the stock decrement
-         * and fulfillment staging.
-         */
         if (order.status === "PAID") {
           return order;
         }
