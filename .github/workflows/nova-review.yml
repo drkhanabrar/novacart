@@ -1,0 +1,28 @@
+name: NovaCart AI — Review & Delist
+
+on:
+  schedule:
+    # Every Thursday at 3:00 AM UTC (~8:30 AM IST)
+    - cron: "0 3 * * 4"
+  workflow_dispatch: {} # lets you trigger this manually from the Actions tab
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run lifecycle review
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: npx tsx scripts/review-products.ts

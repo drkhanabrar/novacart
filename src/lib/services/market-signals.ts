@@ -16,38 +16,79 @@ function threeMonthsAgo(): Date {
   return d;
 }
 
+/**
+ * Retries a flaky operation with exponential backoff (1s, 2s, 4s...).
+ * Google Trends' unofficial endpoint occasionally returns a broken HTML
+ * page instead of JSON — a single bad response used to crash the whole
+ * discover/review run. This absorbs that kind of transient failure.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { retries?: number; baseDelayMs?: number; label?: string } = {}
+): Promise<T> {
+  const { retries = 3, baseDelayMs = 1000, label = "operation" } = options;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        console.warn(
+          `${label} failed (attempt ${attempt}/${retries}): ${
+            err instanceof Error ? err.message : String(err)
+          }. Retrying in ${delay}ms...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function getGoogleTrendsScore(
   keyword: string
 ): Promise<{ score: number; direction: MarketSignal["trendDirection"] }> {
-  const raw = await googleTrends.interestOverTime({
-    keyword,
-    startTime: threeMonthsAgo(),
-    endTime: new Date(),
-  });
+  return withRetry(
+    async () => {
+      const raw = await googleTrends.interestOverTime({
+        keyword,
+        startTime: threeMonthsAgo(),
+        endTime: new Date(),
+      });
 
-  const parsed = JSON.parse(raw);
-  const points: { value: number[] }[] = parsed?.default?.timelineData ?? [];
+      // This is the specific failure mode we're guarding against: Trends
+      // sometimes returns an HTML block/rate-limit page instead of JSON,
+      // which throws here and gets caught by withRetry.
+      const parsed = JSON.parse(raw);
+      const points: { value: number[] }[] = parsed?.default?.timelineData ?? [];
 
-  if (points.length === 0) {
-    return { score: 0, direction: "STEADY" };
-  }
+      if (points.length === 0) {
+        return { score: 0, direction: "STEADY" as const };
+      }
 
-  const values = points.map((p) => p.value[0] ?? 0);
-  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+      const values = points.map((p) => p.value[0] ?? 0);
+      const avg = values.reduce((a, b) => a + b, 0) / values.length;
 
-  const mid = Math.floor(values.length / 2);
-  const firstHalf = values.slice(0, mid);
-  const secondHalf = values.slice(mid);
-  const firstAvg =
-    firstHalf.reduce((a, b) => a + b, 0) / (firstHalf.length || 1);
-  const secondAvg =
-    secondHalf.reduce((a, b) => a + b, 0) / (secondHalf.length || 1);
+      const mid = Math.floor(values.length / 2);
+      const firstHalf = values.slice(0, mid);
+      const secondHalf = values.slice(mid);
+      const firstAvg =
+        firstHalf.reduce((a, b) => a + b, 0) / (firstHalf.length || 1);
+      const secondAvg =
+        secondHalf.reduce((a, b) => a + b, 0) / (secondHalf.length || 1);
 
-  let direction: MarketSignal["trendDirection"] = "STEADY";
-  if (secondAvg > firstAvg * 1.15) direction = "RISING";
-  else if (secondAvg < firstAvg * 0.85) direction = "FALLING";
+      let direction: MarketSignal["trendDirection"] = "STEADY";
+      if (secondAvg > firstAvg * 1.15) direction = "RISING";
+      else if (secondAvg < firstAvg * 0.85) direction = "FALLING";
 
-  return { score: Math.round(avg), direction };
+      return { score: Math.round(avg), direction };
+    },
+    { retries: 3, baseDelayMs: 1500, label: `Google Trends lookup for "${keyword}"` }
+  );
 }
 
 async function getYouTubeSignal(
@@ -60,45 +101,50 @@ async function getYouTubeSignal(
     );
   }
 
-  const searchUrl =
-    `https://www.googleapis.com/youtube/v3/search` +
-    `?part=snippet&type=video&order=viewCount&maxResults=10` +
-    `&publishedAfter=${threeMonthsAgo().toISOString()}` +
-    `&q=${encodeURIComponent(keyword)}&key=${apiKey}`;
+  return withRetry(
+    async () => {
+      const searchUrl =
+        `https://www.googleapis.com/youtube/v3/search` +
+        `?part=snippet&type=video&order=viewCount&maxResults=10` +
+        `&publishedAfter=${threeMonthsAgo().toISOString()}` +
+        `&q=${encodeURIComponent(keyword)}&key=${apiKey}`;
 
-  const searchRes = await fetch(searchUrl);
-  const searchData = await searchRes.json();
+      const searchRes = await fetch(searchUrl);
+      const searchData = await searchRes.json();
 
-  if (searchData.error) {
-    throw new Error(`YouTube API error: ${searchData.error.message}`);
-  }
+      if (searchData.error) {
+        throw new Error(`YouTube API error: ${searchData.error.message}`);
+      }
 
-  const videoIds: string[] = (searchData.items ?? [])
-    .map((item: { id?: { videoId?: string } }) => item.id?.videoId)
-    .filter((id: string | undefined): id is string => Boolean(id));
+      const videoIds: string[] = (searchData.items ?? [])
+        .map((item: { id?: { videoId?: string } }) => item.id?.videoId)
+        .filter((id: string | undefined): id is string => Boolean(id));
 
-  if (videoIds.length === 0) {
-    return { videoCount: 0, totalViews: 0, avgViews: 0 };
-  }
+      if (videoIds.length === 0) {
+        return { videoCount: 0, totalViews: 0, avgViews: 0 };
+      }
 
-  const statsUrl =
-    `https://www.googleapis.com/youtube/v3/videos` +
-    `?part=statistics&id=${videoIds.join(",")}&key=${apiKey}`;
+      const statsUrl =
+        `https://www.googleapis.com/youtube/v3/videos` +
+        `?part=statistics&id=${videoIds.join(",")}&key=${apiKey}`;
 
-  const statsRes = await fetch(statsUrl);
-  const statsData = await statsRes.json();
+      const statsRes = await fetch(statsUrl);
+      const statsData = await statsRes.json();
 
-  const totalViews = (statsData.items ?? []).reduce(
-    (sum: number, item: { statistics?: { viewCount?: string } }) =>
-      sum + parseInt(item.statistics?.viewCount ?? "0", 10),
-    0
+      const totalViews = (statsData.items ?? []).reduce(
+        (sum: number, item: { statistics?: { viewCount?: string } }) =>
+          sum + parseInt(item.statistics?.viewCount ?? "0", 10),
+        0
+      );
+
+      return {
+        videoCount: videoIds.length,
+        totalViews,
+        avgViews: Math.round(totalViews / videoIds.length),
+      };
+    },
+    { retries: 2, baseDelayMs: 1000, label: `YouTube lookup for "${keyword}"` }
   );
-
-  return {
-    videoCount: videoIds.length,
-    totalViews,
-    avgViews: Math.round(totalViews / videoIds.length),
-  };
 }
 
 /**

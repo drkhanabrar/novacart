@@ -1,0 +1,30 @@
+name: NovaCart AI — Discover New Products
+
+on:
+  schedule:
+    # Every Monday at 3:00 AM UTC (~8:30 AM IST)
+    - cron: "0 3 * * 1"
+  workflow_dispatch: {} # lets you trigger this manually from the Actions tab
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run batch discovery
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx scripts/discover-batch.ts
