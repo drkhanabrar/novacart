@@ -23,7 +23,7 @@ const WHATSAPP_START_HOUR = 10;
 const WHATSAPP_END_HOUR = 19;
 
 /*
- * ADD YOUR HOLIDAYS HERE LATER.
+ * ADD HOLIDAYS HERE LATER.
  * Format: YYYY-MM-DD
  *
  * Example:
@@ -89,9 +89,8 @@ function getWhatsAppStatus() {
 }
 
 export default function ContactPage() {
-  const [whatsappStatus, setWhatsappStatus] = useState(
-    getWhatsAppStatus(),
-  );
+  const [whatsappStatus, setWhatsappStatus] =
+    useState(getWhatsAppStatus());
 
   useEffect(() => {
     const updateStatus = () => {
@@ -204,7 +203,7 @@ export default function ContactPage() {
             <button
               type="button"
               disabled
-              className="premium-button mt-6 w-full justify-center cursor-not-allowed opacity-50"
+              className="premium-button mt-6 w-full cursor-not-allowed justify-center opacity-50"
             >
               WhatsApp currently unavailable
             </button>
@@ -295,14 +294,15 @@ export default function ContactPage() {
           </div>
         </div>
 
-        <div className="rounded-[2rem] bg-ink p-6 text-white sm:p-8">
+        {/* FIXED DARK-MODE CONTRAST */}
+        <div className="rounded-[2rem] border border-sage/20 bg-sage/10 p-6 text-ink sm:p-8 dark:bg-card">
           <ShieldCheck className="h-6 w-6 text-sage" />
 
-          <h3 className="mt-5 text-xl font-bold">
-            Safe & secure support
+          <h3 className="mt-5 text-xl font-bold text-ink">
+            Safe &amp; secure support
           </h3>
 
-          <p className="mt-3 text-sm leading-6 text-white/70">
+          <p className="mt-3 text-sm leading-6 text-ink-soft">
             Never share your password, OTP or complete card
             details with anyone claiming to be from NovaCart.
           </p>
