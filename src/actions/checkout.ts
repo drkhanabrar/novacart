@@ -618,7 +618,7 @@ export async function createOrder(
      * conversion rate, lifecycle decision and learned weight downstream would
      * inherit that lie. The tracking endpoint rejects this event type outright.
      */
-    await recordPurchaseEvents(order.items);
+    await recordPurchaseEvents(order.items, order.id);
 
     revalidatePath("/orders");
 
@@ -746,6 +746,7 @@ export async function markOrderPaid(input: {
         where: { orderId: result.id },
         select: { productId: true, quantity: true, price: true },
       }),
+      result.id,
     );
 
     return {

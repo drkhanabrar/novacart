@@ -95,7 +95,7 @@ export async function updateOrderStatusAction(
   });
 
   if (status === "REFUNDED" && order.status !== "REFUNDED") {
-    await recordRefundEvents(order.items);
+    await recordRefundEvents(order.items, order.id);
   }
 
   revalidatePath("/admin/orders");
@@ -449,4 +449,120 @@ export async function upsertCategoryAction(
 
   revalidatePath("/admin/catalog");
   return { ok: true, message: `Category "${name}" saved.` };
+}
+
+/*
+ * Editing an order.
+ *
+ * Only the delivery details are editable — never the items, quantities or
+ * prices. A real store does not retroactively rewrite what a customer bought
+ * and what they were charged: that is their receipt, your accounts and, if it
+ * ever comes to it, your evidence. Amazon and Flipkart work the same way. Use
+ * CANCELLED or REFUNDED to unwind an order instead.
+ *
+ * Correcting a wrong address before dispatch, on the other hand, is routine.
+ */
+export async function updateOrderDeliveryAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const auth = await guard();
+  if (!auth.ok) return { ok: false, message: auth.message };
+
+  const orderId = str(formData.get("orderId"));
+  if (!orderId) return { ok: false, message: "No order specified." };
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { status: true, shippingAddress: true },
+  });
+
+  if (!order) return { ok: false, message: "Order not found." };
+
+  if (["SHIPPED", "DELIVERED"].includes(order.status)) {
+    return {
+      ok: false,
+      message:
+        "This order has already shipped, so the delivery address can no longer be changed here. Contact the courier instead.",
+    };
+  }
+
+  const existing = (order.shippingAddress ?? {}) as Record<string, unknown>;
+
+  const address = {
+    ...existing,
+    fullName: str(formData.get("fullName")) ?? existing.fullName ?? "",
+    phone: str(formData.get("addressPhone")) ?? existing.phone ?? "",
+    line1: str(formData.get("line1")) ?? existing.line1 ?? "",
+    line2: str(formData.get("line2")) ?? null,
+    city: str(formData.get("city")) ?? existing.city ?? "",
+    state: str(formData.get("state")) ?? existing.state ?? "",
+    postalCode: str(formData.get("postalCode")) ?? existing.postalCode ?? "",
+    country: str(formData.get("country")) ?? existing.country ?? "India",
+  };
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      shippingAddress: address as never,
+      contactPhone: str(formData.get("contactPhone")) ?? null,
+    },
+  });
+
+  revalidatePath(`/admin/orders/${orderId}`);
+  return { ok: true, message: "Delivery details updated." };
+}
+
+/*
+ * Deleting an order.
+ *
+ * Intended for clearing test data, not for managing real trade. Deleting a
+ * genuine order destroys the customer's purchase record and your sales history,
+ * and no amount of convenience is worth that — cancel or refund it instead.
+ *
+ * Two things are cleaned up that are easy to forget:
+ *
+ * 1. Items and supplier fulfilment rows go automatically through the schema's
+ *    cascade rules.
+ *
+ * 2. PURCHASE and REFUND telemetry is deleted explicitly. ProductEvent has no
+ *    foreign key to Order, so these would otherwise survive the deletion and
+ *    keep counting toward that product's conversion rate — teaching NOVA that a
+ *    test order was a real sale. Daily metrics are recomputed from source on the
+ *    next rollup, so removing the raw events is enough to correct them.
+ */
+export async function deleteOrderAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const auth = await guard();
+  if (!auth.ok) return { ok: false, message: auth.message };
+
+  const orderId = str(formData.get("orderId"));
+  if (!orderId) return { ok: false, message: "No order specified." };
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, total: true, status: true },
+  });
+
+  if (!order) return { ok: false, message: "Order not found." };
+
+  const telemetry = await prisma.productEvent.deleteMany({
+    where: {
+      type: { in: ["PURCHASE", "REFUND"] },
+      meta: { path: ["orderId"], equals: orderId },
+    },
+  });
+
+  await prisma.order.delete({ where: { id: orderId } });
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin");
+
+  return {
+    ok: true,
+    message:
+      telemetry.count > 0
+        ? `Order deleted, along with ${telemetry.count} linked sales event${telemetry.count === 1 ? "" : "s"}. Run the rollup to refresh daily metrics.`
+        : "Order deleted. No linked sales events were found — orders placed before this feature existed were not tagged, so any telemetry from them stays until the retention window clears it.",
+  };
 }

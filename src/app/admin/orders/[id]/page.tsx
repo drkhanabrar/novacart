@@ -7,8 +7,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
-import { ActionButton } from "@/components/admin/AdminForm";
-import { updateOrderStatusAction } from "@/actions/admin-commerce";
+import {
+  ActionButton,
+  AdminForm,
+  fieldClass,
+  labelClass,
+} from "@/components/admin/AdminForm";
+import {
+  updateOrderStatusAction,
+  updateOrderDeliveryAction,
+  deleteOrderAction,
+} from "@/actions/admin-commerce";
 import { ORDER_STATUSES } from "@/lib/order-status";
 
 export const dynamic = "force-dynamic";
@@ -182,6 +191,155 @@ export default async function AdminOrderPage({
               />
             ),
           )}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold text-ink">Delivery details</h2>
+        <p className="mt-1 text-sm text-ink-soft">
+          Items, quantities and prices are deliberately not editable. That is the
+          customer&apos;s receipt and your sales record — use Cancel or Refund to
+          unwind an order rather than rewriting what it says.
+        </p>
+
+        <div className="mt-4 rounded-2xl border border-ink/10 bg-card p-6">
+          <AdminForm
+            action={updateOrderDeliveryAction}
+            hidden={{ orderId: order.id }}
+            submitLabel="Save delivery details"
+          >
+            <div className="grid gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass} htmlFor="fullName">
+                    Recipient
+                  </label>
+                  <input
+                    id="fullName"
+                    name="fullName"
+                    defaultValue={address?.fullName ?? ""}
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="addressPhone">
+                    Delivery phone
+                  </label>
+                  <input
+                    id="addressPhone"
+                    name="addressPhone"
+                    defaultValue={address?.phone ?? ""}
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="line1">
+                  Address line 1
+                </label>
+                <input
+                  id="line1"
+                  name="line1"
+                  defaultValue={address?.line1 ?? ""}
+                  className={`mt-1 ${fieldClass}`}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass} htmlFor="line2">
+                  Address line 2
+                </label>
+                <input
+                  id="line2"
+                  name="line2"
+                  defaultValue={address?.line2 ?? ""}
+                  className={`mt-1 ${fieldClass}`}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className={labelClass} htmlFor="city">
+                    City
+                  </label>
+                  <input
+                    id="city"
+                    name="city"
+                    defaultValue={address?.city ?? ""}
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="state">
+                    State
+                  </label>
+                  <input
+                    id="state"
+                    name="state"
+                    defaultValue={address?.state ?? ""}
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="postalCode">
+                    PIN code
+                  </label>
+                  <input
+                    id="postalCode"
+                    name="postalCode"
+                    defaultValue={address?.postalCode ?? ""}
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass} htmlFor="country">
+                    Country
+                  </label>
+                  <input
+                    id="country"
+                    name="country"
+                    defaultValue={address?.country ?? "India"}
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="contactPhone">
+                    Contact phone on order
+                  </label>
+                  <input
+                    id="contactPhone"
+                    name="contactPhone"
+                    defaultValue={order.contactPhone ?? ""}
+                    className={`mt-1 ${fieldClass}`}
+                  />
+                </div>
+              </div>
+            </div>
+          </AdminForm>
+        </div>
+      </section>
+
+      <section className="mt-10 pb-16">
+        <h2 className="text-lg font-semibold text-ink">Delete this order</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ink-soft">
+          For clearing test data. Deleting a real order destroys the
+          customer&apos;s purchase record and your sales history, and it cannot be
+          undone. Any sales telemetry linked to this order is removed with it, so
+          a test purchase stops counting toward that product&apos;s conversion
+          rate.
+        </p>
+        <div className="mt-4">
+          <ActionButton
+            action={deleteOrderAction}
+            values={{ orderId: order.id }}
+            label="Delete order permanently"
+            tone="danger"
+            confirm
+          />
         </div>
       </section>
     </main>

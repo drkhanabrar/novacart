@@ -15,8 +15,18 @@ interface PurchasedLine {
   price: unknown;
 }
 
+/*
+ * orderId is stamped into the event metadata.
+ *
+ * ProductEvent has no foreign key to Order, so without this there is no way to
+ * find the telemetry belonging to a particular order. That matters when an
+ * order is deleted: the purchase events would survive it and keep inflating
+ * that product's conversion rate forever, which then feeds NOVA's scoring as
+ * though the sale had really happened.
+ */
 export async function recordPurchaseEvents(
   items: PurchasedLine[],
+  orderId?: string,
 ): Promise<void> {
   try {
     await Promise.all(
@@ -24,6 +34,7 @@ export async function recordPurchaseEvents(
         recordServerEvent(item.productId, "PURCHASE", {
           quantity: item.quantity,
           valueInr: Number(item.price) * item.quantity,
+          meta: orderId ? { orderId } : undefined,
         }),
       ),
     );
@@ -34,6 +45,7 @@ export async function recordPurchaseEvents(
 
 export async function recordRefundEvents(
   items: PurchasedLine[],
+  orderId?: string,
 ): Promise<void> {
   try {
     await Promise.all(
@@ -41,6 +53,7 @@ export async function recordRefundEvents(
         recordServerEvent(item.productId, "REFUND", {
           quantity: item.quantity,
           valueInr: Number(item.price) * item.quantity,
+          meta: orderId ? { orderId } : undefined,
         }),
       ),
     );
