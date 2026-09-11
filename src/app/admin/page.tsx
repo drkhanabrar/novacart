@@ -21,48 +21,127 @@ function since(days: number): Date {
   return date;
 }
 
-export default async function AdminDashboardPage() {
-  const [
-    revenueAgg,
-    orders30,
-    pendingOrders,
-    customers,
-    liveProducts,
-    lowStock,
-    outOfStock,
-    pendingCandidates,
-    pendingRetirements,
-    recentOrders,
-  ] = await Promise.all([
-    // Revenue counts money actually collected, so cancelled and pending
-    // orders never inflate it.
-    prisma.order.aggregate({
-      _sum: { total: true },
-      _count: { _all: true },
-      where: { status: { in: ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] } },
-    }),
-    prisma.order.count({ where: { createdAt: { gte: since(30) } } }),
-    prisma.order.count({ where: { status: "PENDING" } }),
-    prisma.user.count(),
-    prisma.product.count({ where: { isActive: true } }),
-    prisma.productVariant.count({
-      where: { stock: { gt: 0, lte: LOW_STOCK_THRESHOLD } },
-    }),
-    prisma.productVariant.count({ where: { stock: { lte: 0 } } }),
-    prisma.marketCandidate.count({ where: { reviewStatus: "PENDING" } }),
-    prisma.productLifecycle.count({ where: { pendingAction: { not: null } } }),
-    prisma.order.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 8,
-      include: {
-        user: { select: { email: true, name: true } },
-        items: { select: { id: true } },
-      },
-    }),
-  ]);
+/*
+ * Resilient read.
+ *
+ * A dashboard should degrade, not die. If one count times out the rest of the
+ * page must still render, showing a dash for the figure it could not fetch,
+ * because an admin locking themselves out of Orders because a stock query was
+ * slow is a far worse outcome than a missing number.
+ */
+/*
+ * Shape of a row in the recent-orders table.
+ *
+ * Declared explicitly rather than inferred, because the empty-array fallback
+ * has to carry the same type as a successful query including its relations -
+ * otherwise the fallback widens everything to any and the map below loses all
+ * type safety.
+ */
+interface RecentOrder {
+  id: string;
+  total: unknown;
+  status: string;
+  createdAt: Date;
+  user: { email: string; name: string | null };
+  items: { id: string }[];
+}
 
-  const revenue = Number(revenueAgg._sum.total ?? 0);
-  const paidOrders = revenueAgg._count._all;
+async function safe<T>(
+  query: () => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  try {
+    return await query();
+  } catch (error) {
+    console.error("[admin/dashboard] query failed:", error);
+    return fallback;
+  }
+}
+
+export default async function AdminDashboardPage() {
+  /*
+   * Queries run SEQUENTIALLY, not through Promise.all.
+   *
+   * The first version fired ten queries at once. Supabase's pooled connection
+   * allowance is small on the free tier, so the later queries queued behind the
+   * earlier ones until they hit ETIMEDOUT and the whole page threw. Ten short
+   * sequential queries are far quicker than ten parallel ones that exhaust the
+   * pool.
+   *
+   * One groupBy also replaces three separate order counts: it returns the
+   * per-status totals and sums in a single round trip.
+   */
+  const ordersByStatus = await safe(
+    () =>
+      prisma.order.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+        _sum: { total: true },
+      }),
+    [] as { status: string; _count: { _all: number }; _sum: { total: unknown } }[],
+  );
+
+  const COLLECTED = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"];
+
+  const revenue = ordersByStatus
+    .filter((row) => COLLECTED.includes(row.status))
+    .reduce((sum, row) => sum + Number(row._sum.total ?? 0), 0);
+
+  const paidOrders = ordersByStatus
+    .filter((row) => COLLECTED.includes(row.status))
+    .reduce((sum, row) => sum + row._count._all, 0);
+
+  const pendingOrders =
+    ordersByStatus.find((row) => row.status === "PENDING")?._count._all ?? 0;
+
+  const orders30 = await safe(
+    () => prisma.order.count({ where: { createdAt: { gte: since(30) } } }),
+    0,
+  );
+
+  const customers = await safe(() => prisma.user.count(), 0);
+
+  const liveProducts = await safe(
+    () => prisma.product.count({ where: { isActive: true } }),
+    0,
+  );
+
+  const lowStock = await safe(
+    () =>
+      prisma.productVariant.count({
+        where: { stock: { gt: 0, lte: LOW_STOCK_THRESHOLD } },
+      }),
+    0,
+  );
+
+  const outOfStock = await safe(
+    () => prisma.productVariant.count({ where: { stock: { lte: 0 } } }),
+    0,
+  );
+
+  const pendingCandidates = await safe(
+    () => prisma.marketCandidate.count({ where: { reviewStatus: "PENDING" } }),
+    0,
+  );
+
+  const pendingRetirements = await safe(
+    () => prisma.productLifecycle.count({ where: { pendingAction: { not: null } } }),
+    0,
+  );
+
+  const recentOrders = await safe<RecentOrder[]>(
+    () =>
+      prisma.order.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: {
+          user: { select: { email: true, name: true } },
+          items: { select: { id: true } },
+        },
+      }),
+    [],
+  );
+
   const averageOrder = paidOrders > 0 ? revenue / paidOrders : 0;
 
   const stats = [
