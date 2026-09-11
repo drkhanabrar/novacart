@@ -398,7 +398,15 @@ async function trends(
           "Google Trends",
         );
 
-      const values =
+      /*
+       * Annotated because the parsed Trends payload is untyped.
+       *
+       * Without this, timelineData is `any`, so .map() returns `any`, and the
+       * .some() callback below has nothing to infer its parameter from - which
+       * fails a production build under noImplicitAny even though it compiles
+       * fine in dev.
+       */
+      const values: number[] =
         (
           parsed
             ?.default
@@ -466,7 +474,7 @@ async function shopping(
           "Google Shopping Trends",
         );
 
-      const values =
+      const values: number[] =
         (
           parsed
             ?.default
