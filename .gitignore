@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# The documented reference file carries no secrets and should be committed.
+!.env.example
 
 # vercel
 .vercel
@@ -41,3 +43,5 @@ yarn-error.log*
 next-env.d.ts
 discover-error.json
 review-error.json
+
+*.log

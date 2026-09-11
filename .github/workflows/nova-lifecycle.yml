@@ -1,0 +1,47 @@
+name: NovaCart AI — Daily Lifecycle Pass
+
+# Rolls up storefront telemetry, then re-judges every live product against
+# current evidence. Retirements are proposed, not applied, unless
+# NOVA_AUTONOMOUS_RETIRE is explicitly set to true.
+
+on:
+  schedule:
+    # 04:00 UTC — an hour after the research run, so newly published products
+    # already have a lifecycle row by the time this reviews them.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate
+      - name: Run NOVA lifecycle pass
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
+          # Free providers first; Anthropic stays unused unless explicitly enabled.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
+          NOVA_AI_PROVIDER: openrouter
+          NOVA_ALLOW_PAID_AI_FALLBACK: "false"
+          NOVA_MARKET_REGION: IN
+          NOVA_SHIPPING_BUFFER_INR: 120
+          NOVA_PAYMENT_FEE_PERCENT: 2
+          NOVA_GRACE_DAYS: 14
+          NOVA_DELIST_SCORE: 42
+          NOVA_DECLINE_READINGS: 3
+          NOVA_DECLINE_THRESHOLD: 0.6
+          NOVA_AUTONOMOUS_RETIRE: "false"
+          NOVA_EVENT_RETENTION_DAYS: 45
+        run: npm run lifecycle

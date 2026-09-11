@@ -1,0 +1,29 @@
+:root { color-scheme: light; }
+.dark {
+  color-scheme: dark;
+  --color-cream: #171311;
+  --color-cream-soft: #211b18;
+  --color-card: #241d1a;
+  --color-ink: #f7eee4;
+  --color-ink-soft: #c6b6a8;
+  --color-poppy: #ff6a57;
+  --color-poppy-dark: #eb5846;
+  --color-marigold: #f7b84b;
+  --color-sage: #93b57d;
+}
+.dark body { background:var(--color-cream); color:var(--color-ink); }
+.dark .bg-white, .dark .bg-white\/95 { background-color:var(--color-card) !important; }
+.dark .text-slate-600, .dark .text-slate-700 { color:var(--color-ink-soft) !important; }
+.dark .border-slate-200, .dark .border-slate-300 { border-color:color-mix(in srgb,var(--color-ink) 12%,transparent) !important; }
+.dark .bg-emerald-50 { background:color-mix(in srgb,var(--color-sage) 12%,transparent) !important; }
+.dark .text-emerald-700 { color:var(--color-sage) !important; }
+.dark .bg-amber-50 { background:color-mix(in srgb,var(--color-marigold) 13%,transparent) !important; }
+.dark .text-amber-700 { color:var(--color-marigold) !important; }
+.dark .bg-blue-50 { background:color-mix(in srgb,#60a5fa 12%,transparent) !important; }
+.dark .text-blue-700 { color:#93c5fd !important; }
+.dark .bg-red-50 { background:color-mix(in srgb,var(--color-poppy) 12%,transparent) !important; }
+.dark .text-red-700, .dark .text-poppy-dark { color:var(--color-poppy) !important; }
+.dark ::selection { background:color-mix(in srgb,var(--color-poppy) 35%,transparent); color:var(--color-ink); }
+.theme-toggle { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex:0 0 auto; border:1px solid color-mix(in srgb,var(--color-ink) 12%,transparent); border-radius:999px; background:var(--color-card); color:var(--color-ink-soft); box-shadow:0 2px 10px color-mix(in srgb,var(--color-ink) 7%,transparent); cursor:pointer; transition:background-color 180ms ease,border-color 180ms ease,color 180ms ease,transform 180ms ease,box-shadow 180ms ease; }
+.theme-toggle:hover { color:var(--color-poppy); border-color:color-mix(in srgb,var(--color-poppy) 32%,transparent); transform:translateY(-1px); }
+.theme-toggle:focus-visible { outline:2px solid var(--color-poppy); outline-offset:3px; }

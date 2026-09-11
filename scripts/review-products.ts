@@ -1,3 +1,9 @@
+// Legacy entry point, kept so the existing nova-review workflow keeps working.
+//
+// The underlying review is now a full lifecycle pass rather than a keep/delist
+// decision, so the output reports state movement and exposure. For the richer
+// report including telemetry rollup, use `npm run lifecycle`.
+
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
@@ -19,23 +25,54 @@ async function main() {
       return;
     }
 
-    const kept = results.filter((r) => r.action === "KEPT");
-    const delisted = results.filter((r) => r.action === "DELISTED");
+    const retired = results.filter((r) => r.action === "RETIRED");
+    const proposed = results.filter(
+      (r) => r.action === "RETIREMENT_PROPOSED",
+    );
+    const demoted = results.filter((r) => r.action === "DEMOTED");
+    const promoted = results.filter((r) => r.action === "PROMOTED");
+    const held = results.filter((r) => r.action === "HELD");
 
-    console.log(`Reviewed ${results.length} product(s): ${kept.length} kept, ${delisted.length} delisted.\n`);
+    console.log(
+      `Reviewed ${results.length} product(s): ${promoted.length} promoted, ${held.length} held, ${demoted.length} demoted, ${proposed.length} proposed for retirement, ${retired.length} retired.\n`,
+    );
 
-    if (delisted.length > 0) {
-      console.log("❌ DELISTED");
-      for (const r of delisted) {
+    if (proposed.length > 0) {
+      console.log("⏸  RETIREMENT PROPOSED — waiting for your approval");
+      for (const r of proposed) {
         console.log(`   ${r.productTitle}`);
         console.log(`   ${r.reason}\n`);
       }
     }
 
-    if (kept.length > 0) {
-      console.log("✅ KEPT");
-      for (const r of kept) {
-        console.log(`   ${r.productTitle} — ${r.reason}`);
+    if (retired.length > 0) {
+      console.log("❌ RETIRED");
+      for (const r of retired) {
+        console.log(`   ${r.productTitle}`);
+        console.log(`   ${r.reason}\n`);
+      }
+    }
+
+    if (demoted.length > 0) {
+      console.log("🔻 EXPOSURE REDUCED");
+      for (const r of demoted) {
+        console.log(`   ${r.productTitle} — now ${r.exposure}% exposure`);
+        console.log(`   ${r.reason}\n`);
+      }
+    }
+
+    if (promoted.length > 0) {
+      console.log("🔼 EXPOSURE INCREASED");
+      for (const r of promoted) {
+        console.log(`   ${r.productTitle} — now ${r.exposure}% exposure`);
+        console.log(`   ${r.reason}\n`);
+      }
+    }
+
+    if (held.length > 0) {
+      console.log("✅ HELD");
+      for (const r of held) {
+        console.log(`   ${r.productTitle} [${r.toState}] — ${r.reason}`);
       }
       console.log("");
     }

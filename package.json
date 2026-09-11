@@ -11,9 +11,17 @@
     "supplier": "tsx scripts/supplier-search.ts",
     "listing": "tsx scripts/listing-test.ts",
     "discover": "tsx scripts/discover.ts",
+    "discover:batch": "tsx scripts/discover-batch.ts",
     "dbtest": "tsx scripts/db-test.ts",
-	"schemacheck": "tsx scripts/schema-check.ts",
-	"review": "tsx scripts/review-products.ts"
+    "schemacheck": "tsx scripts/schema-check.ts",
+    "review": "tsx scripts/review-products.ts",
+    "research:market": "tsx scripts/research-market.ts",
+    "lifecycle": "tsx scripts/lifecycle.ts",
+    "learn": "tsx scripts/learn.ts",
+    "learn:apply": "tsx scripts/learn.ts --apply",
+    "rollup": "tsx scripts/rollup.ts",
+    "make-admin": "tsx scripts/make-admin.ts",
+    "diagnose:storefront": "tsx scripts/diagnose-storefront.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
@@ -24,6 +32,7 @@
     "lucide-react": "^1.16.0",
     "next": "16.3.0",
     "pg": "^8.23.0",
+    "razorpay": "^2.9.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.20.0",
@@ -45,6 +54,7 @@
   },
   "allowScripts": {
     "@prisma/engines@7.9.1": true,
-    "prisma@7.9.1": true
+    "prisma@7.9.1": true,
+    "esbuild@0.28.2": true
   }
 }

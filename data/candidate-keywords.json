@@ -1,0 +1,15 @@
+{
+  "_comment": "Keywords the automated discovery pipeline checks on schedule. Add/remove freely — this is where your judgment on category direction plugs in. Each one gets a real demand check + supplier match before anything is published; adding a keyword here does NOT mean it becomes a product, it just means it gets evaluated.",
+  "keywords": [
+    "wireless earbuds",
+    "bluetooth speaker",
+    "phone stand",
+    "smartwatch band",
+    "laptop stand",
+    "wireless charger",
+    "gaming mouse",
+    "mechanical keyboard",
+    "webcam",
+    "phone case"
+  ]
+}

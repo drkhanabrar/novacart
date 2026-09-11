@@ -1,0 +1,1 @@
+export default function CheckoutLoading(){return <main className="mx-auto max-w-6xl px-5 py-12 sm:px-6"><div className="skeleton h-4 w-28"/><div className="skeleton mt-4 h-12 w-80"/><div className="mt-10 grid gap-6 lg:grid-cols-[1fr_380px]"><div className="skeleton h-[520px] rounded-[2rem]"/><div className="skeleton h-[430px] rounded-[2rem]"/></div></main>}

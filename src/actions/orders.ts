@@ -1,30 +1,18 @@
-﻿'use server';
+"use server";
 
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
 
-export async function getUserOrders(userId: string) {
-  if (!userId) {
-    return { error: "Unauthorized access." };
-  }
-
+export async function getUserOrders() {
   try {
+    const user = await requireUser();
     const orders = await prisma.order.findMany({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where: { userId: user.id },
+      include: { items: { include: { product: true } } },
+      orderBy: { createdAt: "desc" },
     });
-
     return { orders };
-  } catch (error) {
-    console.error("Error fetching user orders:", error);
-    return { error: "Failed to retrieve order history." };
+  } catch {
+    return { error: "Unauthorized access." };
   }
 }

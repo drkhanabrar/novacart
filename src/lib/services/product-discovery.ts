@@ -1,27 +1,9 @@
-import { prisma } from "@/lib/prisma";
-import { getMarketSignals, calculateDemandScore } from "./market-signals";
-import { searchSupplierProducts, pickBestSupplierMatch } from "./cj-supplier";
-import { generateListing } from "./listing-generator";
-import { NovaEngine, APPROX_USD_TO_INR } from "./nova-core";
+// FILE: src/lib/services/product-discovery.ts
 
-// Minimum bar to auto-publish a product without a human looking at it.
-// Both must be true — strong demand alone isn't enough if we can't
-// confidently price it, and a cheap supplier match alone isn't enough
-// if nobody is actually searching for the product.
-const MIN_DEMAND_SCORE = 40;
-const MIN_MATCH_CONFIDENCE = 50;
-
-// Simple markup heuristic: sell at 2.5x landed cost. This is a starting
-// point, not a pricing strategy — a future stage should make this
-// data-driven based on category and competition.
-const MARKUP_MULTIPLIER = 2.5;
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
+import {
+  runMarketResearch,
+  publishQualifiedCandidate,
+} from "./nova-market-engine";
 
 export interface DiscoveryResult {
   created: boolean;
@@ -31,111 +13,72 @@ export interface DiscoveryResult {
 }
 
 /**
- * The full "discover and publish" pipeline:
- * 1. Check real demand (Google Trends + YouTube)
- * 2. Find a real, confidently-matched supplier (CJ Dropshipping)
- * 3. If both clear the bar, write an AI listing and publish the product
- * 4. Run the full NOVA evaluation to save score + profit data
+ * Compatibility wrapper for the legacy discovery flow.
  *
- * If either demand or supplier-match fails to clear the bar, nothing is
- * created — the function returns a clear reason instead of guessing.
+ * All discovery now goes through the unified NOVA market engine,
+ * so manual discovery cannot bypass the same demand, competition,
+ * margin, return-risk, service-risk and supplier gates.
  */
-export async function discoverAndCreateProduct(params: {
-  keyword: string;
-  categorySlug: string;
-  categoryName: string;
-  brandSlug: string;
-  brandName: string;
-}): Promise<DiscoveryResult> {
-  const { keyword, categorySlug, categoryName, brandSlug, brandName } = params;
+export async function discoverAndCreateProduct(
+  params: {
+    keyword: string;
+    categorySlug: string;
+    categoryName: string;
+    brandSlug: string;
+    brandName: string;
+  },
+): Promise<DiscoveryResult> {
+  void params.categorySlug;
+  void params.categoryName;
+  void params.brandSlug;
+  void params.brandName;
 
-  // 1. Real demand check
-  const signal = await getMarketSignals(keyword);
-  const { overallScore, demandLevel } = calculateDemandScore(signal);
+  const result =
+    await runMarketResearch({
+      seeds: [params.keyword],
+      limit: 1,
+    });
 
-  if (overallScore < MIN_DEMAND_SCORE) {
+  const candidate =
+    result.candidates[0];
+
+  if (!candidate) {
     return {
       created: false,
-      reason: `Demand score too low (${overallScore}/100, needs ${MIN_DEMAND_SCORE}+). Trend is ${signal.trendDirection}.`,
+      reason: `No research candidate was produced for "${params.keyword}".`,
     };
   }
 
-  // 2. Real, confidently-matched supplier
-  const supplierResults = await searchSupplierProducts(keyword, 10);
-  const match = pickBestSupplierMatch(supplierResults, keyword, MIN_MATCH_CONFIDENCE);
-
-  if (!match) {
+  if (
+    candidate.decision !==
+    "PUBLISH"
+  ) {
     return {
       created: false,
-      reason: `No confidently-matching supplier found on CJ Dropshipping for "${keyword}".`,
+      reason: candidate.reason,
     };
   }
 
-  // 3. Real pricing from real cost
-  const costUsd = parseFloat(match.product.sellPrice);
-  const costInr = costUsd * APPROX_USD_TO_INR;
-  const sellPriceInr = Math.round(costInr * MARKUP_MULTIPLIER);
+  const outcome =
+    await publishQualifiedCandidate(
+      candidate,
+    );
 
-  // 4. AI-written bilingual listing, grounded in the real supplier name
-  const listing = await generateListing({
-    productWorkingTitle: keyword,
-    supplierProductName: match.product.productName,
-    category: categoryName,
-    trendDirection: signal.trendDirection,
-  });
-
-  // 5. Ensure category and brand exist
-  const category = await prisma.category.upsert({
-    where: { slug: categorySlug },
-    update: {},
-    create: { name: categoryName, slug: categorySlug },
-  });
-
-  const brand = await prisma.brand.upsert({
-    where: { slug: brandSlug },
-    update: {},
-    create: { name: brandName, slug: brandSlug },
-  });
-
-  // 6. Create the product + variant using REAL supplier data
-  const slug = slugify(listing.titleEn);
-
-  const product = await prisma.product.upsert({
-    where: { slug },
-    update: {},
-    create: {
-      title: listing.titleEn,
-      slug,
-      description: listing.descriptionEn,
-      basePrice: sellPriceInr,
-      categoryId: category.id,
-      brandId: brand.id,
-    },
-  });
-
-  await prisma.productVariant.upsert({
-    where: { sku: `CJ-${match.product.productId}` },
-    update: {},
-    create: {
-      productId: product.id,
-      sku: `CJ-${match.product.productId}`,
-      price: sellPriceInr,
-      name: "Standard",
-      imageUrl: match.product.productImage || null, // real supplier image, no scraping; null if CJ didn't provide one
-      attributes: {
-        hindiTitle: listing.titleHi,
-        hindiDescription: listing.descriptionHi,
-      },
-    },
-  });
-
-  // 7. Run the full evaluation so ProductIntelligence gets saved consistently
-  await NovaEngine.evaluateProduct(product.id);
+  if (outcome.created) {
+    return {
+      created: true,
+      reason: `Published through the unified NOVA market engine: ${candidate.reason}`,
+      productId:
+        outcome.productId,
+      productTitle:
+        outcome.productTitle,
+    };
+  }
 
   return {
-    created: true,
-    reason: `Published with demand score ${overallScore}/100 (${demandLevel}) and ${match.confidence}% supplier match.`,
-    productId: product.id,
-    productTitle: product.title,
+    created: false,
+    reason:
+      outcome.reason ??
+      "NOVA could not publish the qualified candidate.",
   };
 }

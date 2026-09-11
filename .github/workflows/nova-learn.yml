@@ -1,0 +1,43 @@
+name: NovaCart AI — Weekly Learning Pass
+
+# Grades every prediction whose horizon has elapsed and reports what the
+# outcomes imply about NOVA's scoring weights.
+#
+# Scheduled runs are REPORT ONLY. Promoting a new weight version changes how
+# every future product is scored, so it requires a manual dispatch with
+# apply=true.
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Allow NOVA to promote a new weight version if the evidence supports it"
+        required: false
+        default: "false"
+        type: boolean
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate
+      - name: Run NOVA learning pass
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.apply || 'false' }}" = "true" ]; then
+            npm run learn:apply
+          else
+            npm run learn
+          fi
