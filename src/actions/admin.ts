@@ -11,6 +11,7 @@ import { requireAdmin } from "@/lib/auth";
 import {
   approveCandidate,
   rejectCandidate,
+  retryCandidate,
 } from "@/lib/services/candidate-approval";
 import { resolvePendingAction } from "@/lib/services/product-lifecycle";
 
@@ -132,4 +133,25 @@ export async function resolveRetirementAction(
         ? "Product retired and removed from the storefront."
         : `Product kept and returned to ${result.state}.`,
   };
+}
+
+/// Re-attempts a publish that previously failed.
+export async function retryCandidateAction(
+  formData: FormData,
+): Promise<ActionResult> {
+  const auth = await guard();
+  if (!auth.ok) return { ok: false, message: auth.message };
+
+  const candidateId = text(formData.get("candidateId"));
+  if (!candidateId) {
+    return { ok: false, message: "No candidate was specified." };
+  }
+
+  const result = await retryCandidate(candidateId, auth.adminId);
+
+  revalidatePath("/admin/candidates");
+  revalidatePath("/admin/catalog");
+  revalidatePath("/products");
+
+  return { ok: result.ok, message: result.message };
 }

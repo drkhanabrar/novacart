@@ -251,3 +251,56 @@ export async function getReviewQueue(filters: QueueFilters = {}) {
     include: { run: { select: { startedAt: true, region: true } } },
   });
 }
+
+/*
+ * Candidates that were approved but could not be published.
+ *
+ * approveCandidate marks a candidate APPROVED before it attempts the publish,
+ * then FAILED if the publisher refuses. The review queue only fetches PENDING
+ * rows, so a refused candidate silently disappeared from the admin panel
+ * carrying its error message with it — the operator saw a product they had
+ * approved simply never arrive, with no way to find out why.
+ *
+ * These need to be surfaced at least as prominently as the queue itself. A
+ * refusal is information; losing it is worse than the refusal.
+ */
+export async function getBlockedCandidates(limit = 25) {
+  return prisma.marketCandidate.findMany({
+    where: { reviewStatus: "FAILED" },
+    orderBy: { reviewedAt: "desc" },
+    take: limit,
+  });
+}
+
+/*
+ * Puts a failed candidate back in the queue.
+ *
+ * Useful when the refusal was environmental rather than a judgement: a research
+ * re-run found a market price, a duplicate listing was retired, a supplier came
+ * back in stock. The candidate is scored exactly as before — retrying does not
+ * relax any gate, it just asks again.
+ */
+export async function retryCandidate(
+  candidateId: string,
+  adminId: string,
+): Promise<ApprovalResult> {
+  const row = await prisma.marketCandidate.findUnique({
+    where: { id: candidateId },
+  });
+
+  if (!row) {
+    return { ok: false, message: "That candidate no longer exists." };
+  }
+
+  await prisma.marketCandidate.update({
+    where: { id: candidateId },
+    data: {
+      reviewStatus: "PENDING",
+      publishError: null,
+      reviewedAt: null,
+      reviewedBy: null,
+    },
+  });
+
+  return approveCandidate(candidateId, adminId, "Retried after a failed publish.");
+}

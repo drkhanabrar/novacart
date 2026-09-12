@@ -3801,7 +3801,7 @@ export async function publishQualifiedCandidate(
         false,
 
       reason:
-        "NOVA rejected this candidate for a specific disqualifying reason. Approving it would list a product the research says should not be sold.",
+        `NOVA rejected this candidate and human approval does not override a rejection. Its reason was: ${candidate.reason || "not recorded"}`,
     };
   }
 
@@ -3830,7 +3830,20 @@ export async function publishQualifiedCandidate(
         false,
 
       reason:
-        "Candidate is missing validated competition or margin evidence.",
+        `Missing evidence at publish time — ${
+          candidate.competitionScore === null
+            ? "competition could not be measured"
+            : ""
+        }${
+          candidate.competitionScore === null &&
+          candidate.expectedMarginPercent === null
+            ? " and "
+            : ""
+        }${
+          candidate.expectedMarginPercent === null
+            ? "margin could not be calculated (usually no usable supplier cost — CJ returned a price range too wide to trust, or no supplier matched)"
+            : ""
+        }.`,
     };
   }
 
@@ -3880,7 +3893,9 @@ export async function publishQualifiedCandidate(
         false,
 
       reason:
-        "Candidate did not pass commercial sanity at publish time.",
+        `Commercial sanity check failed: ${
+          candidate.commercialSanity || "status unknown"
+        }. This usually means the supplier cost is not credible against the observed market price.`,
     };
   }
 
@@ -3900,7 +3915,7 @@ export async function publishQualifiedCandidate(
         false,
 
       reason:
-        "Supplier evidence missing at publish time.",
+        "No supplier match was recorded for this candidate, so there is nothing to source it from. Re-run research — CJ may not stock this product at a workable price.",
     };
   }
 
@@ -3944,7 +3959,7 @@ export async function publishQualifiedCandidate(
         false,
 
       reason:
-        "No valid proposed selling price was produced.",
+        "No valid selling price could be produced, which happens when supplier cost is unknown or the economics leave no room above cost, shipping and fees.",
     };
   }
 

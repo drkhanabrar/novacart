@@ -8,12 +8,16 @@
 // themselves being learned. A 62 driven by strong repeat-purchase and a 62
 // driven by a thin-margin trend spike are not the same product.
 
-import { getReviewQueue } from "@/lib/services/candidate-approval";
+import {
+  getReviewQueue,
+  getBlockedCandidates,
+} from "@/lib/services/candidate-approval";
 import { prisma } from "@/lib/prisma";
 import { DecisionForm } from "@/components/admin/DecisionForm";
 import {
   approveCandidateAction,
   rejectCandidateAction,
+  retryCandidateAction,
 } from "@/actions/admin";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +41,9 @@ export default async function CandidatesPage({
 }) {
   const { q } = await searchParams;
 
-  const [queue, published, rejected, lastRun] = await Promise.all([
+  const [queue, blocked, published, rejected, lastRun] = await Promise.all([
     getReviewQueue({ limit: 60 }),
+    getBlockedCandidates(),
     prisma.marketCandidate.count({ where: { reviewStatus: "PUBLISHED" } }),
     prisma.marketCandidate.count({ where: { reviewStatus: "REJECTED" } }),
     prisma.marketResearchRun.findFirst({
@@ -94,6 +99,70 @@ export default async function CandidatesPage({
           No candidates match &ldquo;{q}&rdquo;. {queue.length} are waiting in
           total.
         </p>
+      )}
+
+      {/*
+        Failures are shown ABOVE the queue, not hidden below it.
+        A candidate you approved that did not reach the storefront is more
+        urgent than one still waiting for a decision — it represents work you
+        believe is done that is not.
+      */}
+      {blocked.length > 0 && (
+        <section className="mt-8 rounded-2xl border border-poppy/30 bg-poppy/5 p-6">
+          <h2 className="text-lg font-semibold text-ink">
+            Approved but not published
+          </h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            These were approved but the publisher refused them. The reason is
+            shown for each — nothing was skipped silently.
+          </p>
+
+          <ul className="mt-5 grid gap-4">
+            {blocked.map((candidate) => (
+              <li
+                key={candidate.id}
+                className="rounded-xl border border-ink/10 bg-card p-5"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-semibold text-ink">{candidate.keyword}</p>
+                  <p className="font-tag text-[11px] text-ink-soft">
+                    {score(candidate.finalScore)}/100 ·{" "}
+                    {candidate.reviewedAt
+                      ?.toISOString()
+                      .slice(0, 10) ?? "recently"}
+                  </p>
+                </div>
+
+                <p className="mt-3 rounded-lg border border-poppy/25 bg-poppy/10 px-4 py-3 text-sm leading-relaxed text-ink">
+                  {candidate.publishError ??
+                    "No reason was recorded for this failure."}
+                </p>
+
+                <DecisionForm
+                  action={retryCandidateAction}
+                  hidden={{ candidateId: candidate.id }}
+                  fieldName="confirm"
+                  showNote={false}
+                  options={[
+                    { label: "Try publishing again", value: "yes", tone: "primary" },
+                  ]}
+                />
+
+                <div className="mt-2">
+                  <DecisionForm
+                    action={rejectCandidateAction}
+                    hidden={{ candidateId: candidate.id }}
+                    fieldName="confirm"
+                    showNote={false}
+                    options={[
+                      { label: "Dismiss", value: "yes", tone: "quiet" },
+                    ]}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {queue.length === 0 && (

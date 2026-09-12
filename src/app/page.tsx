@@ -154,7 +154,7 @@ export default async function LandingPage() {
                 href="/products"
                 className="px-7 py-3.5 bg-poppy hover:bg-poppy-dark text-white rounded-full font-semibold transition-all duration-300 flex items-center gap-2 shadow-[0_12px_35px_rgba(217,74,74,0.22)] hover:-translate-y-0.5"
               >
-                Explore the edit
+                Shop all products
                 <ArrowRight className="w-4 h-4" />
               </Link>
 
@@ -506,7 +506,7 @@ export default async function LandingPage() {
               href="/products"
               className="inline-flex items-center gap-2 mt-8 px-8 py-3.5 bg-poppy text-white rounded-full font-semibold hover:bg-poppy-dark transition-all duration-300 hover:-translate-y-0.5 shadow-[0_12px_35px_rgba(217,74,74,0.18)]"
             >
-              Explore the collection
+              Browse all products
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
