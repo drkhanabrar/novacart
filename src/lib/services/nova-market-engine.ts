@@ -49,6 +49,10 @@ import {
 } from "./product-lifecycle";
 
 import {
+  resolveStoreCategory,
+} from "./store-categories";
+
+import {
   recordPrediction,
   recordDecision,
 } from "./nova-decisions";
@@ -4014,14 +4018,30 @@ export async function publishQualifiedCandidate(
     };
   }
 
+  /*
+   * Category comes from the controlled store taxonomy, not from the analyst.
+   *
+   * This used to upsert whatever string the AI returned for this candidate, so
+   * every new phrasing created a permanent category: "gaming accessories",
+   * "Consumer Goods", "Home Utility" and occasionally the product name itself.
+   * The storefront ended up with a navigation full of near-duplicates and
+   * single-product categories no shopper would click.
+   *
+   * The analyst's answer is still used as a signal - it is just no longer
+   * allowed to define the navigation.
+   */
+  const storeCategory =
+    resolveStoreCategory(
+      candidate.keyword,
+      candidate.category,
+    );
+
   const category =
     await prisma.category.upsert(
       {
         where: {
           slug:
-            slugify(
-              candidate.category,
-            ),
+            storeCategory.slug,
         },
 
         update:
@@ -4029,12 +4049,10 @@ export async function publishQualifiedCandidate(
 
         create: {
           name:
-            candidate.category,
+            storeCategory.name,
 
           slug:
-            slugify(
-              candidate.category,
-            ),
+            storeCategory.slug,
         },
       },
     );

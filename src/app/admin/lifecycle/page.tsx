@@ -25,7 +25,13 @@ const STATE_TONE: Record<string, string> = {
   RETIRED: "text-poppy",
 };
 
-export default async function LifecyclePage() {
+export default async function LifecyclePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+
   const [pending, lifecycles] = await Promise.all([
     prisma.productLifecycle.findMany({
       where: { pendingAction: { not: null } },
@@ -35,13 +41,20 @@ export default async function LifecyclePage() {
       orderBy: { pendingRaisedAt: "asc" },
     }),
     prisma.productLifecycle.findMany({
+      where: q
+        ? {
+            product: {
+              title: { contains: q, mode: "insensitive" },
+            },
+          }
+        : {},
       include: {
         product: {
           select: { id: true, title: true, slug: true, isActive: true },
         },
       },
       orderBy: [{ exposure: "desc" }, { updatedAt: "desc" }],
-      take: 80,
+      take: 120,
     }),
   ]);
 
@@ -115,6 +128,15 @@ export default async function LifecyclePage() {
 
       <section className="mt-12 pb-16">
         <h2 className="text-lg font-semibold text-ink">Lifecycle</h2>
+
+        <form className="mt-3" action="/admin/lifecycle">
+          <input
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Search tracked products"
+            className="w-full max-w-md rounded-xl border border-ink/15 bg-cream-soft px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus:border-ink/30 focus:outline-none"
+          />
+        </form>
         <p className="mt-1 text-sm text-ink-soft">
           Exposure is the merchandising weight the storefront sorts by. NOVA
           lowers it before it ever proposes removing something.

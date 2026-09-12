@@ -30,9 +30,15 @@ function percent(value: unknown): string {
   return Number.isFinite(numeric) ? `${numeric.toFixed(1)}%` : "unknown";
 }
 
-export default async function CandidatesPage() {
+export default async function CandidatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+
   const [queue, published, rejected, lastRun] = await Promise.all([
-    getReviewQueue({ limit: 40 }),
+    getReviewQueue({ limit: 60 }),
     prisma.marketCandidate.count({ where: { reviewStatus: "PUBLISHED" } }),
     prisma.marketCandidate.count({ where: { reviewStatus: "REJECTED" } }),
     prisma.marketResearchRun.findFirst({
@@ -40,6 +46,17 @@ export default async function CandidatesPage() {
       select: { startedAt: true, status: true, region: true },
     }),
   ]);
+
+  const needle = (q ?? "").trim().toLowerCase();
+
+  const visible = needle
+    ? queue.filter(
+        (candidate) =>
+          candidate.keyword.toLowerCase().includes(needle) ||
+          (candidate.category ?? "").toLowerCase().includes(needle) ||
+          (candidate.reason ?? "").toLowerCase().includes(needle),
+      )
+    : queue;
 
   return (
     <main className="mx-auto max-w-5xl px-5 py-10">
@@ -57,6 +74,28 @@ export default async function CandidatesPage() {
         </p>
       </header>
 
+      {/*
+        Filtering happens in memory rather than in the query.
+        The pending queue is capped at 60 rows, so a round trip to the database
+        for each keystroke would cost more than it saves — and it keeps the
+        candidate scoring untouched, which is what matters here.
+      */}
+      <form className="mt-6" action="/admin/candidates">
+        <input
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder="Search candidates by keyword or category"
+          className="w-full max-w-md rounded-xl border border-ink/15 bg-cream-soft px-3 py-2 text-sm text-ink placeholder:text-ink-soft focus:border-ink/30 focus:outline-none"
+        />
+      </form>
+
+      {visible.length === 0 && queue.length > 0 && (
+        <p className="mt-8 rounded-2xl border border-ink/10 bg-card p-6 text-sm text-ink-soft">
+          No candidates match &ldquo;{q}&rdquo;. {queue.length} are waiting in
+          total.
+        </p>
+      )}
+
       {queue.length === 0 && (
         <p className="mt-8 rounded-2xl border border-ink/10 bg-card p-6 text-sm text-ink-soft">
           Run <span className="font-tag text-ink">npm run research:market</span>{" "}
@@ -65,7 +104,7 @@ export default async function CandidatesPage() {
       )}
 
       <ul className="mt-8 grid gap-5">
-        {queue.map((candidate) => (
+        {visible.map((candidate) => (
           <li
             key={candidate.id}
             className="rounded-2xl border border-ink/10 bg-card p-6"
