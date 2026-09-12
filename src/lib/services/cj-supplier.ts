@@ -46,6 +46,19 @@ export interface SupplierProduct {
   priceSource?: "PRODUCT" | "VARIANT" | "PRODUCT_PROVISIONAL";
   variantResolved?: boolean;
   inventoryCountryVerified?: boolean;
+
+  /*
+   * Physical and category attributes.
+   *
+   * CJ returns these on every listV2 result and the mapper used to discard
+   * them. They are what make a structural plausibility check possible: token
+   * overlap alone matched "compost bin kitchen countertop" to a 132-gallon
+   * garden bin, because the words genuinely do overlap. Weight does not: one
+   * is under a kilo, the other is over twenty.
+   */
+  categoryName?: string;
+  /// Product weight in grams, as CJ reports it.
+  weightGrams?: number | null;
 }
 
 export interface SupplierMatch {
@@ -1606,6 +1619,9 @@ export async function searchSupplierProducts(
         bigImage?: string;
         productImage?: string;
         sellPrice?: string;
+        categoryName?: string;
+        productWeight?: string | number;
+        packWeight?: string | number;
       }): SupplierProduct => {
         const id =
           item.id ??
@@ -1629,6 +1645,10 @@ export async function searchSupplierProducts(
           priceSource: "PRODUCT",
           variantResolved: false,
           inventoryCountryVerified: false,
+          categoryName: item.categoryName ?? undefined,
+          weightGrams: parseWeightGrams(
+            item.productWeight ?? item.packWeight,
+          ),
         };
       },
       ),
@@ -1756,6 +1776,103 @@ export async function searchSupplierProducts(
 }
 
 
+/*
+ * Physical plausibility.
+ *
+ * The price filter in the market engine catches matches that cost more than the
+ * product retails for, but that is an economic proxy for a physical problem: the
+ * supplier is offering a completely different object. Weight measures the
+ * problem directly, and it is not fooled by a cheap listing for a bulky item.
+ *
+ * Both signals are kept because each catches cases the other misses.
+ */
+function parseWeightGrams(
+  value: unknown,
+): number | null {
+  if (value === null || value === undefined) return null;
+
+  const numeric = Number(
+    String(value).replace(/[^0-9.]/g, ""),
+  );
+
+  return Number.isFinite(numeric) && numeric > 0
+    ? numeric
+    : null;
+}
+
+/*
+ * Words that only appear on genuinely bulky goods.
+ *
+ * If the SUPPLIER name contains one of these and the QUERY does not, the match
+ * is a category error rather than a near miss — a wardrobe is not a variation on
+ * a drawer organiser.
+ */
+const BULK_TERMS = [
+  "cabinet",
+  "wardrobe",
+  "dresser",
+  "bookcase",
+  "bookshelf",
+  "sofa",
+  "couch",
+  "vanity",
+  "bed frame",
+  "mattress",
+  "kitchen island",
+  "trolley cart",
+  "patio",
+  "gallon",
+  "trailer",
+  "chest of drawer",
+  "tv stand",
+  "shelving unit",
+  "desk,",
+  "workstation",
+];
+
+/// Above this, a product is not a small accessory. 4 kg is generous —
+/// it still allows a heavy toolkit or a large cookware item.
+const ACCESSORY_WEIGHT_LIMIT_G = 4000;
+
+export function isPhysicallyPlausible(
+  query: string,
+  product: SupplierProduct,
+): { ok: boolean; reason?: string } {
+  const q = query.toLowerCase();
+  const name = (product.productName || "").toLowerCase();
+
+  const queryWantsBulk = BULK_TERMS.some(
+    (term) => q.includes(term),
+  );
+
+  if (!queryWantsBulk) {
+    const offending = BULK_TERMS.find(
+      (term) => name.includes(term),
+    );
+
+    if (offending) {
+      return {
+        ok: false,
+        reason: `supplier item is a "${offending}" but the search was not`,
+      };
+    }
+
+    if (
+      product.weightGrams !== null &&
+      product.weightGrams !== undefined &&
+      product.weightGrams >
+        ACCESSORY_WEIGHT_LIMIT_G
+    ) {
+      return {
+        ok: false,
+        reason: `supplier item weighs ${(product.weightGrams / 1000).toFixed(1)}kg, too heavy for this product`,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
 export function pickBestSupplierMatch(
   products: SupplierProduct[],
   productTitle: string,
@@ -1772,6 +1889,24 @@ export function pickBestSupplierMatch(
 
   for (const product of products) {
     if (!product.productName.trim()) continue;
+
+    /*
+     * Structural rejection before scoring.
+     *
+     * A match that is physically the wrong kind of object should never be
+     * ranked at all, however many words it shares with the query.
+     */
+    const plausible = isPhysicallyPlausible(
+      productTitle,
+      product,
+    );
+
+    if (!plausible.ok) {
+      console.log(
+        `NOVA CJ: rejected implausible match → "${product.productName.slice(0, 60)}" (${plausible.reason})`,
+      );
+      continue;
+    }
 
     const scored = scoreSupplierMatch(
       productTitle,
