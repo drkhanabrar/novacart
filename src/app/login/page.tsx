@@ -14,6 +14,7 @@ import {
   Mail,
 } from "lucide-react";
 import { loginUser } from "@/actions/auth";
+import { BrandLockup } from "@/components/BrandMark";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -69,11 +70,7 @@ export default function LoginPage() {
     <div className="flex min-h-[80vh] items-center justify-center px-4 py-14">
       <div className="w-full max-w-md rounded-[30px] border border-ink/10 bg-card p-8 shadow-xl shadow-ink/5 sm:p-10">
         <div className="mb-8 text-center">
-          <img
-            src="/logo.png"
-            alt="NovaCart"
-            className="mx-auto mb-5 h-8 w-auto object-contain"
-          />
+          <BrandLockup className="mb-6" />
 
           <span className="font-tag text-[10px] uppercase tracking-[.18em] text-poppy">
             Welcome back
