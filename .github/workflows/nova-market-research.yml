@@ -2,10 +2,9 @@ name: NovaCart AI — Weekly Market Research
 
 on:
   schedule:
-    # Weekly, Monday 03:00 UTC (08:30 IST). Research is the expensive half of
-    # the loop — it makes live calls to Trends, Reddit, News and CJ for every
-    # seed — and a new candidate set daily would produce a review queue nobody
-    # can keep up with. Weekly matches the pace a human can actually decide at.
+    # Weekly, Monday 03:00 UTC (08:30 IST). Research makes live calls to
+    # Trends, Reddit, News and CJ for every seed, and a daily candidate set
+    # would produce a review queue nobody can keep up with.
     - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
@@ -15,7 +14,7 @@ on:
         default: "40"
         type: string
       seedOffset:
-        description: "Seed index to start from (leave blank for the weekly rotation)"
+        description: "Seed index to start from (blank = weekly rotation)"
         required: false
         default: ""
         type: string
@@ -32,19 +31,15 @@ jobs:
       - run: npm ci
 
       # ---------------------------------------------------------------------
-      # Fail loudly on a bad configuration.
+      # Diagnose the secrets before spending two minutes on a doomed run.
       #
-      # A truncated DATABASE_URL previously produced "getaddrinfo EAI_AGAIN
-      # base" twenty lines into a Prisma stack trace, which reads like a
-      # database problem and is actually a malformed secret. A missing API key
-      # was worse: GitHub substitutes an empty string silently, so the run
-      # succeeded and quietly produced placeholder scores from the rules
-      # analyst with nothing in the log to say why.
-      #
-      # This step names both problems in one line, before anything expensive
-      # runs.
+      # DATABASE_URL has now failed three times with three different symptoms
+      # (host "base", then "Invalid URL"), so this prints the SHAPE of the
+      # value — length, first and last characters, whether it contains a
+      # newline — without ever revealing the password. Guessing at what got
+      # pasted has cost several cycles; this ends it.
       # ---------------------------------------------------------------------
-      - name: Verify configuration
+      - name: Diagnose configuration
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
@@ -52,53 +47,57 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
-          node -e "
-            const url = process.env.DATABASE_URL;
-            if (!url) {
-              console.error('FATAL: DATABASE_URL secret is not set.');
-              console.error('Add it at Settings > Secrets and variables > Actions.');
-              process.exit(1);
-            }
-            let host;
-            try {
-              host = new URL(url).hostname;
-            } catch (error) {
-              console.error('FATAL: DATABASE_URL is not a valid URL:', error.message);
-              process.exit(1);
-            }
-            if (!host.includes('.')) {
-              console.error('FATAL: DATABASE_URL host is \"' + host + '\", which is not a real hostname.');
-              console.error('The secret is truncated — a newline in the pasted value cuts the string short.');
-              console.error('Delete the secret, paste the value into a plain text editor to confirm it is');
-              console.error('one unbroken line, then add it again.');
-              process.exit(1);
-            }
-            console.log('Database host OK:', host);
+          node <<'SCRIPT'
+          const u = process.env.DATABASE_URL || "";
 
-            const optional = {
-              CJ_API_KEY: 'supplier sourcing — research cannot match products without it',
-              OPENROUTER_API_KEY: 'free AI provider',
-              GEMINI_API_KEY: 'free AI provider',
-              TAVILY_API_KEY: 'competition enrichment (optional)',
-            };
-            let missingAi = 0;
-            for (const [name, purpose] of Object.entries(optional)) {
-              if (process.env[name]) {
-                console.log('  ' + name + ': set');
-              } else {
-                console.warn('  ' + name + ': MISSING — ' + purpose);
-                if (name === 'OPENROUTER_API_KEY' || name === 'GEMINI_API_KEY') missingAi++;
-              }
-            }
-            if (missingAi === 2) {
-              console.error('');
-              console.error('FATAL: no AI provider key is configured.');
-              console.error('Every candidate would fall back to the deterministic analyst, which');
-              console.error('returns fixed constants (repeat 35, return risk 25). Those look like');
-              console.error('findings in the admin panel but measure nothing. Refusing to run.');
+          console.log("=== DATABASE_URL shape ===");
+          console.log("length:", u.length, "(local value is 141)");
+          console.log("first 22:", JSON.stringify(u.slice(0, 22)));
+          console.log("last 22:", JSON.stringify(u.slice(-22)));
+          console.log("contains newline:", /[\r\n]/.test(u));
+          console.log("contains quote:", u.includes('"') || u.includes("'"));
+          console.log("starts correctly:", u.startsWith("postgresql://"));
+
+          console.log("");
+          console.log("=== API keys ===");
+          for (const name of [
+            "CJ_API_KEY",
+            "OPENROUTER_API_KEY",
+            "GEMINI_API_KEY",
+            "TAVILY_API_KEY",
+          ]) {
+            const v = process.env[name] || "";
+            console.log(name + ":", v ? "set (" + v.length + " chars)" : "MISSING");
+          }
+
+          console.log("");
+          if (!u) {
+            console.error("FATAL: DATABASE_URL secret is not set at all.");
+            process.exit(1);
+          }
+          try {
+            const host = new URL(u).hostname;
+            if (!host.includes(".")) {
+              console.error('FATAL: host is "' + host + '" — the secret is truncated.');
               process.exit(1);
             }
-          "
+            console.log("Database host OK:", host);
+          } catch (error) {
+            console.error("FATAL: DATABASE_URL will not parse as a URL.");
+            console.error("Compare the shape above against your local value.");
+            console.error("It must begin with postgresql:// and contain no quotes or newline.");
+            process.exit(1);
+          }
+
+          if (!process.env.OPENROUTER_API_KEY && !process.env.GEMINI_API_KEY) {
+            console.error("");
+            console.error("FATAL: no AI provider key configured.");
+            console.error("Every candidate would fall back to the deterministic analyst,");
+            console.error("which returns fixed constants (repeat 35, return risk 25).");
+            console.error("Those look like findings but measure nothing. Refusing to run.");
+            process.exit(1);
+          }
+          SCRIPT
 
       - name: Generate Prisma Client
         env:
@@ -110,17 +109,16 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
 
-          # Free AI chain: Gemini first, then OpenRouter, then Hugging Face.
           # ANTHROPIC_API_KEY is deliberately NOT passed. With paid fallback
-          # disabled it would never be used, and not exposing it to the job
-          # removes the possibility of accidental spend entirely.
+          # disabled it would never be used, and withholding it from the job
+          # removes any possibility of accidental spend.
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           HF_API_KEY: ${{ secrets.HF_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
 
-          # Gemini leads: OpenRouter's free pool is unreliable and rate-limits
-          # daily, which is what drove earlier runs into the rules fallback.
+          # Gemini leads. OpenRouter's free pool rate-limits daily, which is
+          # what pushed earlier runs into the rules fallback.
           NOVA_AI_PROVIDER: gemini
           NOVA_FREE_AI_ORDER: gemini,openrouter,huggingface
           NOVA_GEMINI_MODEL: gemini-3.6-flash
@@ -129,7 +127,6 @@ jobs:
           NOVA_ALLOW_PAID_AI_FALLBACK: "false"
 
           NOVA_MARKET_REGION: IN
-          # Blank means the engine uses its normal weekly rotation.
           NOVA_SEED_OFFSET: ${{ github.event.inputs.seedOffset || '' }}
           NOVA_SEEDS_PER_RUN: 18
 
@@ -144,9 +141,6 @@ jobs:
           NOVA_ENABLE_AMAZON_SNAPSHOT: true
           NOVA_RESEARCH_TIMEOUT_MS: 12000
 
-        # Research NEVER publishes.
-        #
-        # Candidates queue at /admin/candidates and wait for a human. The
-        # --publish path still exists in the script for manual local use, but a
-        # scheduled job must not put products in front of customers on its own.
+        # Research NEVER publishes. Candidates queue at /admin/candidates and
+        # wait for a human decision.
         run: npm run research:market -- --limit=${{ github.event.inputs.limit || '40' }}
