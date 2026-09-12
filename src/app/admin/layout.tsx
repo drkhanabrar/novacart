@@ -27,6 +27,7 @@ const SHOP_TABS = [
 ];
 
 const NOVA_TABS = [
+  { href: "/admin/research", label: "Research" },
   { href: "/admin/candidates", label: "Candidates" },
   { href: "/admin/lifecycle", label: "Lifecycle" },
   { href: "/admin/nova", label: "Intelligence" },

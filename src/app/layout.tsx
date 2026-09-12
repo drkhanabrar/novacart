@@ -30,7 +30,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <Navbar
           user={
             currentUser
-              ? { id: currentUser.id, name: currentUser.name, email: currentUser.email, phone: currentUser.phone }
+              ? { id: currentUser.id, name: currentUser.name, email: currentUser.email, phone: currentUser.phone, role: currentUser.role }
               : null
           }
         />

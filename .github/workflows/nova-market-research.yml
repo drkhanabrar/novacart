@@ -8,6 +8,16 @@ on:
     - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
+      limit:
+        description: "How many candidates to evaluate"
+        required: false
+        default: "40"
+        type: string
+      seedOffset:
+        description: "Seed index to start from (leave blank for the weekly rotation)"
+        required: false
+        default: ""
+        type: string
       publish:
         description: "Publish only candidates that clear every NOVA gate"
         required: false
@@ -41,6 +51,8 @@ jobs:
           NOVA_AI_PROVIDER: openrouter
           NOVA_ALLOW_PAID_AI_FALLBACK: "false"
           NOVA_MARKET_REGION: IN
+          # Blank means the engine falls back to its normal weekly rotation.
+          NOVA_SEED_OFFSET: ${{ github.event.inputs.seedOffset || '' }}
           NOVA_MAX_CANDIDATES: 30
           NOVA_MIN_DEMAND_SCORE: 55
           NOVA_MIN_MARGIN_PERCENT: 22
@@ -60,5 +72,5 @@ jobs:
           if false; then
             npm run research:market -- --limit=30 --publish
           else
-            npm run research:market -- --limit=30
+            npm run research:market -- --limit=${{ github.event.inputs.limit || '40' }}
           fi

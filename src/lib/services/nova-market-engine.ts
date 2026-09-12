@@ -745,11 +745,36 @@ async function getRelatedQueries(
       (7 * 24 * 60 * 60 * 1000),
   );
 
+  /*
+   * NOVA_SEED_OFFSET forces a specific window.
+   *
+   * Rotation is right for the scheduled weekly job, but it makes exploring a
+   * category on demand impossible - you would have to wait for its turn. Set
+   * this to the index you want to start from when you want to research a
+   * particular part of the catalogue now. Leave it unset for normal rotation.
+   */
+  const forcedOffset = Number(
+    process.env.NOVA_SEED_OFFSET,
+  );
+
   const offset =
-    seeds.length > 0
-      ? (week * perRun) %
-        seeds.length
-      : 0;
+    seeds.length === 0
+      ? 0
+      : Number.isFinite(
+            forcedOffset,
+          ) && forcedOffset >= 0
+        ? forcedOffset %
+          seeds.length
+        : (week * perRun) %
+          seeds.length;
+
+  console.log(
+    `NOVA DISCOVERY: seed window ${offset}-${offset + perRun - 1} of ${seeds.length}${
+      Number.isFinite(forcedOffset)
+        ? " (forced via NOVA_SEED_OFFSET)"
+        : " (weekly rotation)"
+    }`,
+  );
 
   const seedList =
     seeds.length <= perRun

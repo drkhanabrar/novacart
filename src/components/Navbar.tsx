@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   UserRound,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { logoutUser } from "@/actions/auth";
@@ -28,6 +29,15 @@ interface NavbarUser {
   name: string | null;
   email: string;
   phone: string | null;
+  /*
+   * Used only to decide whether to show the admin link.
+   *
+   * This is a convenience, not a security boundary: the value arrives from the
+   * server and a determined visitor could edit it in their browser. The actual
+   * gate is the role check in src/app/admin/layout.tsx, which runs server-side
+   * on every request. Faking this here only reveals a link that then 404s.
+   */
+  role?: string | null;
 }
 
 export function Navbar({
@@ -231,6 +241,17 @@ export function Navbar({
                       </div>
 
                       <div className="p-2">
+                        {user.role === "ADMIN" && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setAccountOpen(false)}
+                            className="account-menu-link"
+                          >
+                            <ShieldCheck className="h-4 w-4 text-poppy" />
+                            Admin panel
+                          </Link>
+                        )}
+
                         <Link
                           href="/account"
                           onClick={() =>
