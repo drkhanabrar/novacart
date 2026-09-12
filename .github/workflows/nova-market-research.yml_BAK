@@ -1,0 +1,76 @@
+name: NovaCart AI — Daily Market Research
+on:
+  schedule:
+    # Weekly, Monday 03:00 UTC (08:30 IST). Research is the expensive half of
+    # the loop — it makes live calls to Trends, Reddit, News and CJ for every
+    # seed — and a new candidate set daily would produce a review queue nobody
+    # can keep up with. Weekly matches the pace a human can actually decide at.
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many candidates to evaluate"
+        required: false
+        default: "40"
+        type: string
+      seedOffset:
+        description: "Seed index to start from (leave blank for the weekly rotation)"
+        required: false
+        default: ""
+        type: string
+      publish:
+        description: "Publish only candidates that clear every NOVA gate"
+        required: false
+        default: "false"
+        type: boolean
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: Generate Prisma Client
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate
+      - name: Run NOVA research
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
+          # Free AI chain: OpenRouter, then Gemini, then Hugging Face.
+          # ANTHROPIC_API_KEY is deliberately not passed here — with
+          # NOVA_ALLOW_PAID_AI_FALLBACK false it would never be used, and not
+          # exposing it to the job removes the possibility of accidental spend.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
+          NOVA_AI_PROVIDER: openrouter
+          NOVA_ALLOW_PAID_AI_FALLBACK: "false"
+          NOVA_MARKET_REGION: IN
+          # Blank means the engine falls back to its normal weekly rotation.
+          NOVA_SEED_OFFSET: ${{ github.event.inputs.seedOffset || '' }}
+          NOVA_MAX_CANDIDATES: 30
+          NOVA_MIN_DEMAND_SCORE: 55
+          NOVA_MIN_MARGIN_PERCENT: 22
+          NOVA_AUTO_PUBLISH_MIN_SCORE: 78
+          NOVA_AUTO_PUBLISH_MIN_CONFIDENCE: 80
+          NOVA_SHIPPING_BUFFER_INR: 120
+          NOVA_PAYMENT_FEE_PERCENT: 2
+          NOVA_ENABLE_PUBLIC_YOUTUBE: true
+          NOVA_ENABLE_AMAZON_SNAPSHOT: true
+          NOVA_RESEARCH_TIMEOUT_MS: 12000
+          NOVA_MAX_AUTOPUBLISH_PER_RUN: 3
+        run: |
+          # Never publishes. Candidates are queued at /admin/candidates and
+          # wait for a human. The publish path still exists in the script for
+          # manual local use, but the scheduled job must not reach the
+          # storefront on its own.
+          if false; then
+            npm run research:market -- --limit=30 --publish
+          else
+            npm run research:market -- --limit=${{ github.event.inputs.limit || '40' }}
+          fi

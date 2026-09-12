@@ -1,4 +1,5 @@
-name: NovaCart AI — Daily Market Research
+name: NovaCart AI — Weekly Market Research
+
 on:
   schedule:
     # Weekly, Monday 03:00 UTC (08:30 IST). Research is the expensive half of
@@ -18,11 +19,7 @@ on:
         required: false
         default: ""
         type: string
-      publish:
-        description: "Publish only candidates that clear every NOVA gate"
-        required: false
-        default: "false"
-        type: boolean
+
 jobs:
   research:
     runs-on: ubuntu-latest
@@ -33,44 +30,123 @@ jobs:
           node-version: "20"
           cache: "npm"
       - run: npm ci
+
+      # ---------------------------------------------------------------------
+      # Fail loudly on a bad configuration.
+      #
+      # A truncated DATABASE_URL previously produced "getaddrinfo EAI_AGAIN
+      # base" twenty lines into a Prisma stack trace, which reads like a
+      # database problem and is actually a malformed secret. A missing API key
+      # was worse: GitHub substitutes an empty string silently, so the run
+      # succeeded and quietly produced placeholder scores from the rules
+      # analyst with nothing in the log to say why.
+      #
+      # This step names both problems in one line, before anything expensive
+      # runs.
+      # ---------------------------------------------------------------------
+      - name: Verify configuration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: |
+          node -e "
+            const url = process.env.DATABASE_URL;
+            if (!url) {
+              console.error('FATAL: DATABASE_URL secret is not set.');
+              console.error('Add it at Settings > Secrets and variables > Actions.');
+              process.exit(1);
+            }
+            let host;
+            try {
+              host = new URL(url).hostname;
+            } catch (error) {
+              console.error('FATAL: DATABASE_URL is not a valid URL:', error.message);
+              process.exit(1);
+            }
+            if (!host.includes('.')) {
+              console.error('FATAL: DATABASE_URL host is \"' + host + '\", which is not a real hostname.');
+              console.error('The secret is truncated — a newline in the pasted value cuts the string short.');
+              console.error('Delete the secret, paste the value into a plain text editor to confirm it is');
+              console.error('one unbroken line, then add it again.');
+              process.exit(1);
+            }
+            console.log('Database host OK:', host);
+
+            const optional = {
+              CJ_API_KEY: 'supplier sourcing — research cannot match products without it',
+              OPENROUTER_API_KEY: 'free AI provider',
+              GEMINI_API_KEY: 'free AI provider',
+              TAVILY_API_KEY: 'competition enrichment (optional)',
+            };
+            let missingAi = 0;
+            for (const [name, purpose] of Object.entries(optional)) {
+              if (process.env[name]) {
+                console.log('  ' + name + ': set');
+              } else {
+                console.warn('  ' + name + ': MISSING — ' + purpose);
+                if (name === 'OPENROUTER_API_KEY' || name === 'GEMINI_API_KEY') missingAi++;
+              }
+            }
+            if (missingAi === 2) {
+              console.error('');
+              console.error('FATAL: no AI provider key is configured.');
+              console.error('Every candidate would fall back to the deterministic analyst, which');
+              console.error('returns fixed constants (repeat 35, return risk 25). Those look like');
+              console.error('findings in the admin panel but measure nothing. Refusing to run.');
+              process.exit(1);
+            }
+          "
+
       - name: Generate Prisma Client
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma generate
+
       - name: Run NOVA research
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
-          # Free AI chain: OpenRouter, then Gemini, then Hugging Face.
-          # ANTHROPIC_API_KEY is deliberately not passed here — with
-          # NOVA_ALLOW_PAID_AI_FALLBACK false it would never be used, and not
-          # exposing it to the job removes the possibility of accidental spend.
+
+          # Free AI chain: Gemini first, then OpenRouter, then Hugging Face.
+          # ANTHROPIC_API_KEY is deliberately NOT passed. With paid fallback
+          # disabled it would never be used, and not exposing it to the job
+          # removes the possibility of accidental spend entirely.
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           HF_API_KEY: ${{ secrets.HF_API_KEY }}
-          NOVA_AI_PROVIDER: openrouter
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+
+          # Gemini leads: OpenRouter's free pool is unreliable and rate-limits
+          # daily, which is what drove earlier runs into the rules fallback.
+          NOVA_AI_PROVIDER: gemini
+          NOVA_FREE_AI_ORDER: gemini,openrouter,huggingface
+          NOVA_GEMINI_MODEL: gemini-3.6-flash
+          NOVA_AI_TIMEOUT_MS: 90000
+          NOVA_MAX_AI_ANALYSES: 12
           NOVA_ALLOW_PAID_AI_FALLBACK: "false"
+
           NOVA_MARKET_REGION: IN
-          # Blank means the engine falls back to its normal weekly rotation.
+          # Blank means the engine uses its normal weekly rotation.
           NOVA_SEED_OFFSET: ${{ github.event.inputs.seedOffset || '' }}
-          NOVA_MAX_CANDIDATES: 30
+          NOVA_SEEDS_PER_RUN: 18
+
+          NOVA_MAX_CANDIDATES: 40
           NOVA_MIN_DEMAND_SCORE: 55
           NOVA_MIN_MARGIN_PERCENT: 22
-          NOVA_AUTO_PUBLISH_MIN_SCORE: 78
-          NOVA_AUTO_PUBLISH_MIN_CONFIDENCE: 80
           NOVA_SHIPPING_BUFFER_INR: 120
           NOVA_PAYMENT_FEE_PERCENT: 2
+          NOVA_DROPSHIP_STOCK: 100
+
           NOVA_ENABLE_PUBLIC_YOUTUBE: true
           NOVA_ENABLE_AMAZON_SNAPSHOT: true
           NOVA_RESEARCH_TIMEOUT_MS: 12000
-          NOVA_MAX_AUTOPUBLISH_PER_RUN: 3
-        run: |
-          # Never publishes. Candidates are queued at /admin/candidates and
-          # wait for a human. The publish path still exists in the script for
-          # manual local use, but the scheduled job must not reach the
-          # storefront on its own.
-          if false; then
-            npm run research:market -- --limit=30 --publish
-          else
-            npm run research:market -- --limit=${{ github.event.inputs.limit || '40' }}
-          fi
+
+        # Research NEVER publishes.
+        #
+        # Candidates queue at /admin/candidates and wait for a human. The
+        # --publish path still exists in the script for manual local use, but a
+        # scheduled job must not put products in front of customers on its own.
+        run: npm run research:market -- --limit=${{ github.event.inputs.limit || '40' }}
