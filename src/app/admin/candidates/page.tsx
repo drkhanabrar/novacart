@@ -72,7 +72,7 @@ export default async function CandidatesPage({
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-soft">
           {queue.length === 0
             ? "Nothing is waiting. New candidates appear here after each weekly research run."
-            : `${queue.length} candidate${queue.length === 1 ? "" : "s"} researched and scored. Approving one generates its listing and publishes it to the store.`}{" "}
+            : `${queue.length} candidate${queue.length === 1 ? "" : "s"} from the latest research run. Approving one generates its listing and publishes it to the store.`}{" "}
           {published} published, {rejected} rejected so far.
           {lastRun &&
             ` Last research run ${lastRun.startedAt.toISOString().slice(0, 10)} (${lastRun.region}, ${lastRun.status.toLowerCase()}).`}

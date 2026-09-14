@@ -3585,6 +3585,44 @@ export async function runMarketResearch(
         },
       ).length;
 
+    /*
+     * Retire candidates still pending from earlier runs.
+     *
+     * A candidate is a snapshot of demand, competition and supplier price at
+     * one moment. Leaving old ones in the queue mixes weeks-old evidence with
+     * today's, and approving a stale entry publishes a product on the strength
+     * of a trend that may since have collapsed. If the opportunity is still
+     * real, this run has just scored it again with current data.
+     */
+    const superseded = (
+      await prisma.marketCandidate.updateMany(
+        {
+          where: {
+            reviewStatus:
+              "PENDING",
+
+            runId: {
+              not: run.id,
+            },
+          },
+
+          data: {
+            reviewStatus:
+              "EXPIRED",
+
+            reviewNote:
+              "Superseded by a newer research run. Its market evidence is no longer current.",
+          },
+        },
+      )
+    ).count;
+
+    if (superseded > 0) {
+      console.log(
+        `NOVA: expired ${superseded} candidate(s) left pending from earlier runs`,
+      );
+    }
+
     await prisma.marketResearchRun.update(
       {
         where: {

@@ -237,11 +237,32 @@ export interface QueueFilters {
   limit?: number;
 }
 
-/// Candidates awaiting a decision, best first.
+/*
+ * Candidates awaiting a decision, from the MOST RECENT run only.
+ *
+ * This previously returned every PENDING candidate ever scored, so the queue
+ * accumulated across runs and mixed weeks-old entries with today's. That is
+ * actively misleading: a candidate is a snapshot of demand, competition and
+ * supplier price at one moment. Approving a three-week-old one publishes a
+ * product on the strength of evidence that has since moved, and the trend that
+ * justified it may have collapsed.
+ *
+ * Superseded candidates are not deleted — they are marked EXPIRED so the
+ * decision history stays intact and NOVA's past reasoning remains auditable.
+ */
 export async function getReviewQueue(filters: QueueFilters = {}) {
+  const latestRun = await prisma.marketResearchRun.findFirst({
+    where: { status: "COMPLETED" },
+    orderBy: { startedAt: "desc" },
+    select: { id: true },
+  });
+
+  if (!latestRun) return [];
+
   return prisma.marketCandidate.findMany({
     where: {
       reviewStatus: "PENDING",
+      runId: latestRun.id,
       ...(filters.minScore !== undefined
         ? { finalScore: { gte: filters.minScore } }
         : {}),
@@ -250,6 +271,32 @@ export async function getReviewQueue(filters: QueueFilters = {}) {
     take: filters.limit ?? 50,
     include: { run: { select: { startedAt: true, region: true } } },
   });
+}
+
+/*
+ * Retires candidates left pending from earlier runs.
+ *
+ * Called after a research run completes. Anything still awaiting a decision
+ * from a previous run is superseded by definition: if the keyword still
+ * represents an opportunity, the new run will have scored it again with current
+ * evidence, and that fresher row is the one worth acting on.
+ */
+export async function expireSupersededCandidates(
+  currentRunId: string,
+): Promise<number> {
+  const result = await prisma.marketCandidate.updateMany({
+    where: {
+      reviewStatus: "PENDING",
+      runId: { not: currentRunId },
+    },
+    data: {
+      reviewStatus: "EXPIRED",
+      reviewNote:
+        "Superseded by a newer research run. Its market evidence is no longer current.",
+    },
+  });
+
+  return result.count;
 }
 
 /*
